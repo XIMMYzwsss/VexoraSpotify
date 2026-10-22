@@ -275,6 +275,11 @@ static UIButtonConfiguration *chipConfiguration(NSString *title, NSString *symbo
     if (SGRLyricsLookPresetIndex(SGRLyricsLookNow()) == (NSInteger)i) return;
     [_feedback selectionChanged];
     SGRSetLyricsLook(SGRLyricsLookPreset(i), self);
+    if ((NSInteger)i == SGRLyricsVexoraPresetIndex()) {
+        NSArray<NSString *> *motions = SGRLyricsAnimationNames();
+        NSUInteger snappy = [motions indexOfObject:@"Snappy"];
+        if (snappy != NSNotFound) SGRSetLyricsAnimationIndex((NSInteger)snappy, self);
+    }
 }
 
 - (void)resetTapped {
