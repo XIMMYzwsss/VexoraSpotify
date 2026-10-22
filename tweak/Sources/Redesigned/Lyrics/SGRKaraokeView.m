@@ -119,25 +119,27 @@ static UIColor *dimFromLit(UIColor *lit) {
     return [UIColor colorWithRed:r green:g blue:b alpha:kDimAlpha];
 }
 
-static UILabel *wordLabel(NSString *text, UIFont *font, UIColor *color, CGRect frame, BOOL rightToLeft) {
+static UILabel *wordLabel(NSString *text, UIFont *font, UIColor *color, CGRect frame, BOOL rightToLeft, BOOL outlined) {
     UILabel *label = [[UILabel alloc] initWithFrame:frame];
     label.font = font;
+    BOOL useAttrs = rightToLeft || outlined;
+    if (!useAttrs) {
+        label.text = text;
+        label.textColor = color;
+        return label;
+    }
     NSMutableDictionary *attrs = [NSMutableDictionary dictionaryWithDictionary:@{
         NSFontAttributeName: font, NSForegroundColorAttributeName: color}];
-    if (sg_outline) {
+    if (outlined) {
         attrs[NSStrokeColorAttributeName] = UIColor.blackColor;
-        attrs[NSStrokeWidthAttributeName] = @(-3.0);
+        attrs[NSStrokeWidthAttributeName] = @(-2.0);
     }
     if (rightToLeft) {
         NSMutableParagraphStyle *paragraph = [NSMutableParagraphStyle new];
         paragraph.baseWritingDirection = NSWritingDirectionRightToLeft;
         attrs[NSParagraphStyleAttributeName] = paragraph;
     }
-    if (sg_outline || rightToLeft) label.attributedText = [[NSAttributedString alloc] initWithString:text attributes:attrs];
-    else {
-        label.text = text;
-        label.textColor = color;
-    }
+    label.attributedText = [[NSAttributedString alloc] initWithString:text attributes:attrs];
     return label;
 }
 
@@ -150,7 +152,7 @@ static UIView *letterHost(NSString *text, UIFont *font, UIColor *litColor, CGRec
                           usingBlock:^(NSString *letter, NSRange range, NSRange enclosing, BOOL *stop) {
         CGFloat x = [[text substringToIndex:range.location] sizeWithAttributes:attributes].width;
         CGFloat wide = ceil([letter sizeWithAttributes:attributes].width) + 2;
-        UILabel *label = wordLabel(letter, font, litColor, CGRectMake(floor(x), 0, wide, bounds.size.height), NO);
+        UILabel *label = wordLabel(letter, font, litColor, CGRectMake(floor(x), 0, wide, bounds.size.height), NO, sg_outline);
         label.layer.shadowColor = litColor.CGColor;
         label.layer.shadowOffset = CGSizeZero;
         label.layer.shadowOpacity = 0;
@@ -194,10 +196,11 @@ static UIView *letterHost(NSString *text, UIFont *font, UIColor *litColor, CGRec
     _riseEnd = word.end;
     _rightToLeft = rightToLeft;
     UIColor *dim = dimFromLit(litColor);
-    [self addSubview:wordLabel(word.text, font, dim, self.bounds, rightToLeft)];
+    [self addSubview:wordLabel(word.text, font, dim, self.bounds, rightToLeft, NO)];
     BOOL waves = sgLetters && !rightToLeft && word.text.length > 1 && !SGKaraokeUnspacedScript(word.text);
     NSArray<UILabel *> *letters = nil;
-    _lit = waves ? letterHost(word.text, font, litColor, self.bounds, &letters) : wordLabel(word.text, font, litColor, self.bounds, rightToLeft);
+    _lit = waves ? letterHost(word.text, font, litColor, self.bounds, &letters)
+                 : wordLabel(word.text, font, litColor, self.bounds, rightToLeft, sg_outline);
     _letters = letters;
     // Hidden until the line is sung: a masked layer is drawn offscreen every frame even when the
     // mask leaves nothing of it, and a song has hundreds of words waiting their turn.

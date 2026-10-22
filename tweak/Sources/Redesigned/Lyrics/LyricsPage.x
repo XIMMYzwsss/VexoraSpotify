@@ -16,6 +16,18 @@ static UIView *clearAncestors(UIView *view) {
     return top;
 }
 
+static void tuneSpotifyEffects(UIView *root, UIView *black, UIView *cover, UIView *blur, UIView *dim) {
+    NSSet<UIView *> *ours = [NSSet setWithObjects:black, cover, blur, dim, nil];
+    NSMutableArray<UIView *> *stack = [root.subviews mutableCopy];
+    while (stack.count) {
+        UIView *v = stack.lastObject;
+        [stack removeLastObject];
+        if ([ours containsObject:v]) continue;
+        if ([v isKindOfClass:UIVisualEffectView.class]) v.hidden = YES;
+        [stack addObjectsFromArray:v.subviews];
+    }
+}
+
 static void refreshCoverGlow(UIView *page) {
     UIImageView *cover = objc_getAssociatedObject(page, &kCoverKey);
     if (!cover || cover.hidden) return;
@@ -24,7 +36,7 @@ static void refreshCoverGlow(UIView *page) {
 }
 
 static void layoutLyricsBackground(UIView *page) {
-    BOOL vexora = SGRLyricsVexoraLookActive();
+    BOOL coverMode = SGRLyricsFullscreenBackgroundNow() == SGRLyricsFullscreenBackgroundCover;
     UIView *black = objc_getAssociatedObject(page, &kBlackBgKey);
     UIImageView *cover = objc_getAssociatedObject(page, &kCoverKey);
     UIVisualEffectView *blur = objc_getAssociatedObject(page, &kBlurKey);
@@ -34,6 +46,7 @@ static void layoutLyricsBackground(UIView *page) {
         black = [UIView new];
         black.tag = kLyricsSolidBackgroundTag;
         black.backgroundColor = UIColor.blackColor;
+        black.opaque = YES;
         black.userInteractionEnabled = NO;
         black.accessibilityElementsHidden = YES;
         objc_setAssociatedObject(page, &kBlackBgKey, black, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -74,9 +87,13 @@ static void layoutLyricsBackground(UIView *page) {
     dim.frame = page.bounds;
     dim.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
 
-    black.hidden = vexora;
-    cover.hidden = blur.hidden = dim.hidden = !vexora;
-    if (vexora) refreshCoverGlow(page);
+    black.hidden = coverMode;
+    cover.hidden = blur.hidden = dim.hidden = !coverMode;
+    if (coverMode) refreshCoverGlow(page);
+
+    page.opaque = !coverMode;
+    page.backgroundColor = coverMode ? UIColor.clearColor : UIColor.blackColor;
+    tuneSpotifyEffects(page, black, cover, blur, dim);
 
     UIVisualEffectView *glass = SGGlassFor(page, &kPageGlassKey);
     glass.hidden = YES;

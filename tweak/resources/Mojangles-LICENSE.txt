@@ -1,0 +1,3 @@
+Mojangles.otf is the OFL-licensed Minecraft Font by IdreesInc
+https://github.com/IdreesInc/Minecraft-Font (SIL Open Font License 1.1)
+Fan recreation — not an official Mojang asset.

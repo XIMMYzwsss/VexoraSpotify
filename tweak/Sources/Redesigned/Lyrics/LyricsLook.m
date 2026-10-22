@@ -3,6 +3,7 @@
 #import "Core/SGCore.h"
 #import "Settings/SGPageStyle.h"
 #import "Shared/Fonts/Fonts.h"
+#import <CoreText/CoreText.h>
 
 NSNotificationName const SGRLyricsLookDidChangeNotification = @"spotifyglass.redesign.lyricsLookDidChange";
 
@@ -103,9 +104,11 @@ void SGRResetLyricsLook(id changer) {
     [store removeObjectForKey:SGRKeyLyricsFont];
     [store removeObjectForKey:SGRKeyLyricsAnimation];
     [store removeObjectForKey:SGRKeyLyricsOutline];
-    [store removeObjectForKey:SGRKeyLyricsColor0];
-    [store removeObjectForKey:SGRKeyLyricsColor1];
-    [store removeObjectForKey:SGRKeyLyricsColor2];
+    [store removeObjectForKey:SGRKeyLyricsColor];
+    [store removeObjectForKey:SGRKeyLyricsFullscreenBackground];
+    [store removeObjectForKey:@"spotifyglass.redesign.lyricsColor0"];
+    [store removeObjectForKey:@"spotifyglass.redesign.lyricsColor1"];
+    [store removeObjectForKey:@"spotifyglass.redesign.lyricsColor2"];
     [NSNotificationCenter.defaultCenter postNotificationName:SGRLyricsLookDidChangeNotification object:changer];
 }
 
@@ -135,64 +138,86 @@ BOOL SGRLyricsOutlineEnabled(void) {
     return SGFlag(SGRKeyLyricsOutline, NO);
 }
 
-UIColor *SGRLyricsColorAtIndex(NSUInteger index) {
-    static NSString *const keys[] = {SGRKeyLyricsColor0, SGRKeyLyricsColor1, SGRKeyLyricsColor2};
-    return colorFromRGB(storedRGB(keys[MIN(index, 2)]));
+static NSInteger lyricsTextRGB(void) {
+    NSUserDefaults *store = NSUserDefaults.standardUserDefaults;
+    if ([store objectForKey:SGRKeyLyricsColor] != nil) return storedRGB(SGRKeyLyricsColor);
+    if ([store objectForKey:@"spotifyglass.redesign.lyricsColor0"] != nil) return storedRGB(@"spotifyglass.redesign.lyricsColor0");
+    return kDefaultLyricsRGB;
 }
 
-NSString *SGRLyricsColorLabelAtIndex(NSUInteger index) {
-    static NSString *const keys[] = {SGRKeyLyricsColor0, SGRKeyLyricsColor1, SGRKeyLyricsColor2};
-    return [NSString stringWithFormat:@"#%06lX", (long)storedRGB(keys[MIN(index, 2)])];
+UIColor *SGRLyricsTextColor(void) {
+    return colorFromRGB(lyricsTextRGB());
 }
 
-void SGRSetLyricsColorAtIndex(NSUInteger index, UIColor *color, id changer) {
-    static NSString *const keys[] = {SGRKeyLyricsColor0, SGRKeyLyricsColor1, SGRKeyLyricsColor2};
-    if (index > 2 || !color) return;
-    SGSetInt(keys[index], rgbFromColor(color));
+NSString *SGRLyricsTextColorLabel(void) {
+    return [NSString stringWithFormat:@"#%06lX", (long)lyricsTextRGB()];
+}
+
+void SGRSetLyricsTextColor(UIColor *color, id changer) {
+    if (!color) return;
+    SGSetInt(SGRKeyLyricsColor, rgbFromColor(color));
     [NSNotificationCenter.defaultCenter postNotificationName:SGRLyricsLookDidChangeNotification object:changer];
 }
 
-static UIColor *blendColors(UIColor *from, UIColor *to, CGFloat t) {
-    t = MAX(0, MIN(1, t));
-    CGFloat r0 = 0, g0 = 0, b0 = 0, a0 = 0, r1 = 0, g1 = 0, b1 = 0, a1 = 0;
-    [from getRed:&r0 green:&g0 blue:&b0 alpha:&a0];
-    [to getRed:&r1 green:&g1 blue:&b1 alpha:&a1];
-    return [UIColor colorWithRed:r0 + (r1 - r0) * t green:g0 + (g1 - g0) * t blue:b0 + (b1 - b0) * t alpha:1];
-}
-
 UIColor *SGRLyricsColorForLineAtIndex(NSUInteger lineIndex, NSUInteger lineCount) {
-    UIColor *c0 = SGRLyricsColorAtIndex(0);
-    UIColor *c1 = SGRLyricsColorAtIndex(1);
-    UIColor *c2 = SGRLyricsColorAtIndex(2);
-    if (storedRGB(SGRKeyLyricsColor0) == storedRGB(SGRKeyLyricsColor1)
-        && storedRGB(SGRKeyLyricsColor1) == storedRGB(SGRKeyLyricsColor2))
-        return c0;
-    if (lineCount <= 1) return c0;
-    CGFloat t = (CGFloat)lineIndex / (CGFloat)(lineCount - 1);
-    if (t <= 0.5) return blendColors(c0, c1, t * 2);
-    return blendColors(c1, c2, (t - 0.5) * 2);
+    (void)lineIndex;
+    (void)lineCount;
+    return SGRLyricsTextColor();
 }
 
 @interface SGRLyricsColorPicker : NSObject <UIColorPickerViewControllerDelegate>
-@property (nonatomic) NSUInteger slot;
 @end
 
 @implementation SGRLyricsColorPicker
 - (void)colorPickerViewControllerDidFinish:(UIColorPickerViewController *)picker {
-    SGRSetLyricsColorAtIndex(self.slot, picker.selectedColor, nil);
+    SGRSetLyricsTextColor(picker.selectedColor, nil);
 }
 @end
 
-void SGRPickLyricsColorAtIndex(NSUInteger index) {
-    static SGRLyricsColorPicker *delegates[3];
-    index = MIN(index, 2);
-    if (!delegates[index]) delegates[index] = [SGRLyricsColorPicker new];
-    delegates[index].slot = index;
+void SGRPickLyricsTextColor(void) {
+    static SGRLyricsColorPicker *delegate;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ delegate = [SGRLyricsColorPicker new]; });
     UIColorPickerViewController *picker = [UIColorPickerViewController new];
     picker.supportsAlpha = NO;
-    picker.selectedColor = SGRLyricsColorAtIndex(index);
-    picker.delegate = delegates[index];
+    picker.selectedColor = SGRLyricsTextColor();
+    picker.delegate = delegate;
     [SGTopController() presentViewController:picker animated:YES completion:nil];
+}
+
+NSArray<NSString *> *SGRLyricsFullscreenBackgroundNames(void) {
+    return @[@"Solid black", @"Cover glow"];
+}
+
+SGRLyricsFullscreenBackground SGRLyricsFullscreenBackgroundNow(void) {
+    NSInteger mode = SGInt(SGRKeyLyricsFullscreenBackground, SGRLyricsFullscreenBackgroundBlack);
+    return mode == SGRLyricsFullscreenBackgroundCover ? SGRLyricsFullscreenBackgroundCover : SGRLyricsFullscreenBackgroundBlack;
+}
+
+void SGRSetLyricsFullscreenBackground(SGRLyricsFullscreenBackground mode, id changer) {
+    SGSetInt(SGRKeyLyricsFullscreenBackground, mode == SGRLyricsFullscreenBackgroundCover ? 1 : 0);
+    [NSNotificationCenter.defaultCenter postNotificationName:SGRLyricsLookDidChangeNotification object:changer];
+}
+
+#pragma mark - Mojangles (Vexora lyrics font)
+
+static NSString *const kMojanglesFamily = @"Minecraft";
+
+BOOL SGRegisterMojanglesFont(void) {
+    static BOOL registered = NO;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSString *path = [NSBundle.mainBundle pathForResource:@"Mojangles" ofType:@"otf"];
+        if (!path.length) return;
+        NSURL *url = [NSURL fileURLWithPath:path];
+        CFErrorRef error = NULL;
+        if (!CTFontManagerRegisterFontsForURL((__bridge CFURLRef)url, kCTFontManagerScopeProcess, &error)) {
+            SGLog(@"lyrics font: Mojangles not registered: %@", CFBridgingRelease(error));
+            return;
+        }
+        registered = [UIFont fontNamesForFamilyName:kMojanglesFamily].count > 0;
+    });
+    return registered;
 }
 
 NSInteger SGRLyricsAnimationIndex(void) {
@@ -213,6 +238,7 @@ SGRLyricsAnimation SGRLyricsAnimationNow(void) {
 
 NSArray<NSString *> *SGRLyricsFontChoices(void) {
     NSMutableArray<NSString *> *choices = [@[@"System", @"Rounded", @"Serif", @"Mono"] mutableCopy];
+    if (SGRLyricsVexoraLookActive() && SGRegisterMojanglesFont()) [choices addObject:SGRLyricsFontMojangles];
     NSString *imported = [NSUserDefaults.standardUserDefaults stringForKey:SGKeyAppFontName];
     if (imported.length && SGRegisterCustomFont()) [choices addObject:imported];
     for (NSString *family in SGAppFontFamilies()) if (![choices containsObject:family]) [choices addObject:family];
@@ -221,6 +247,7 @@ NSArray<NSString *> *SGRLyricsFontChoices(void) {
 
 NSString *SGRLyricsFontChoice(void) {
     NSString *saved = [NSUserDefaults.standardUserDefaults stringForKey:SGRKeyLyricsFont];
+    if ([saved isEqualToString:SGRLyricsFontMojangles] && !SGRLyricsVexoraLookActive()) saved = @"System";
     return saved.length && [SGRLyricsFontChoices() containsObject:saved] ? saved : @"System";
 }
 
@@ -231,6 +258,10 @@ void SGRSetLyricsFontChoice(NSString *choice, id changer) {
 
 UIFont *SGRLyricsFont(CGFloat size, UIFontWeight weight) {
     NSString *choice = SGRLyricsFontChoice();
+    if ([choice isEqualToString:SGRLyricsFontMojangles] && SGRegisterMojanglesFont()) {
+        UIFont *font = [UIFont fontWithName:[UIFont fontNamesForFamilyName:kMojanglesFamily].firstObject size:size];
+        if (font) return font;
+    }
     UIFontDescriptorSystemDesign design = nil;
     if ([choice isEqualToString:@"Rounded"]) design = UIFontDescriptorSystemDesignRounded;
     else if ([choice isEqualToString:@"Serif"]) design = UIFontDescriptorSystemDesignSerif;

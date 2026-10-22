@@ -102,21 +102,18 @@ static void presentStyleSheet(UIViewController *owner) {
         [NSNotificationCenter.defaultCenter postNotificationName:SGRLyricsLookDidChangeNotification object:sheetPage];
     };
     rows = [rows arrayByAddingObject:outline];
-    rows = [rows arrayByAddingObject:SGStatActionRow(@"Lyrics color (top)", @"Use the same color in all three for solid text", ^NSString *{
-        return SGRLyricsColorLabelAtIndex(0);
+    rows = [rows arrayByAddingObject:SGStatActionRow(@"Lyrics color", @"Active sung line", ^NSString *{
+        return SGRLyricsTextColorLabel();
     }, ^{
-        SGRPickLyricsColorAtIndex(0);
+        SGRPickLyricsTextColor();
     })];
-    rows = [rows arrayByAddingObject:SGStatActionRow(@"Lyrics color (middle)", @"Blend between top and bottom for a gradient", ^NSString *{
-        return SGRLyricsColorLabelAtIndex(1);
-    }, ^{
-        SGRPickLyricsColorAtIndex(1);
-    })];
-    rows = [rows arrayByAddingObject:SGStatActionRow(@"Lyrics color (bottom)", nil, ^NSString *{
-        return SGRLyricsColorLabelAtIndex(2);
-    }, ^{
-        SGRPickLyricsColorAtIndex(2);
-    })];
+    NSArray<NSString *> *backgrounds = SGRLyricsFullscreenBackgroundNames();
+    SGModRow *fullscreenBg = SGMenuRow(@"Fullscreen background", backgrounds, ^NSString *{
+        return backgrounds[(NSUInteger)SGRLyricsFullscreenBackgroundNow()];
+    }, ^(NSInteger index) {
+        SGRSetLyricsFullscreenBackground((SGRLyricsFullscreenBackground)index, sheetPage);
+    });
+    rows = [rows arrayByAddingObject:fullscreenBg];
     NSArray<NSString *> *fonts = SGRLyricsFontChoices();
     SGModRow *font = SGMenuRow(@"Font", fonts, ^NSString *{ return SGRLyricsFontChoice(); }, ^(NSInteger index) {
         SGRSetLyricsFontChoice(fonts[(NSUInteger)index], sheetPage);
@@ -136,8 +133,9 @@ static void presentStyleSheet(UIViewController *owner) {
         SGRResetLyricsLook(nil);   // the sheet and the page both read the look again
     });
     NSString *footer = @"Blur is how much the lines away from the one sung soften. Glow and Wave are how strongly a held "
-                       @"word glows and its letters rise. 100% is Apple Music's. The three colors blend from the top line "
-                       @"of the song to the bottom; matching all three gives one solid color. Font and Animation are for the lyrics only.";
+                       @"word glows and its letters rise. 100% is Apple Music's. Outline applies to the sung line only. "
+                       @"Fullscreen background is the lyrics page behind the text; Solid black is opaque. Mojangles appears "
+                       @"in Font when the Vexora preset is selected.";
     SGRLyricsStyleSheet *page = [[SGRLyricsStyleSheet alloc] initWithTitle:@"Lyrics Style" intro:nil
                                                                  sections:@[SGNotedSection(nil, rows, footer),
                                                                            SGSection(nil, @[reset])] footer:nil];
@@ -301,6 +299,7 @@ static UIButtonConfiguration *chipConfiguration(NSString *title, NSString *symbo
         NSArray<NSString *> *motions = SGRLyricsAnimationNames();
         NSUInteger snappy = [motions indexOfObject:@"Snappy"];
         if (snappy != NSNotFound) SGRSetLyricsAnimationIndex((NSInteger)snappy, self);
+        if (SGRegisterMojanglesFont()) SGRSetLyricsFontChoice(SGRLyricsFontMojangles, self);
     }
 }
 
