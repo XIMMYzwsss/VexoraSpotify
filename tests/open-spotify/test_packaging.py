@@ -15,17 +15,17 @@ spec.loader.exec_module(module)
 class PackagingTests(unittest.TestCase):
     def test_identity_matches_host_and_override(self):
         host = {"CFBundleIdentifier": "com.spotify.client", "CFBundleShortVersionString": "9.1.90", "CFBundleVersion": "1234"}
-        for override in ("", "dev.example.taurus"):
+        for override in ("", "dev.example.vexoraspotify"):
             info = module.make_plist(host, override)
-            self.assertEqual(info["CFBundleIdentifier"], (override or host["CFBundleIdentifier"]) + ".TaurusOpenSpotify")
+            self.assertEqual(info["CFBundleIdentifier"], (override or host["CFBundleIdentifier"]) + ".VexoraSpotifyOpenSpotify")
             self.assertEqual(info["CFBundleVersion"], "1234")
             self.assertEqual(info["CFBundleShortVersionString"], "9.1.90")
             self.assertEqual(info["NSExtension"]["NSExtensionPointIdentifier"], "com.apple.Safari.web-extension")
         with tempfile.TemporaryDirectory() as directory:
             source, output = Path(directory) / "host.plist", Path(directory) / "Info.plist"
             source.write_bytes(plistlib.dumps(host))
-            subprocess.run(["python3", str(ROOT / "scripts/safari-extension-plist.py"), str(source), str(output), "dev.taurus"], check=True)
-            self.assertEqual(plistlib.loads(output.read_bytes()), module.make_plist(host, "dev.taurus"))
+            subprocess.run(["python3", str(ROOT / "scripts/safari-extension-plist.py"), str(source), str(output), "dev.vexoraspotify"], check=True)
+            self.assertEqual(plistlib.loads(output.read_bytes()), module.make_plist(host, "dev.vexoraspotify"))
 
     def test_manifest_references_only_existing_files_and_expected_hosts(self):
         resources = ROOT / "extension/OpenSpotify/Resources"
