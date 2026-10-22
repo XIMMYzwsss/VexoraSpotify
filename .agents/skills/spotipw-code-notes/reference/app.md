@@ -85,7 +85,7 @@
 ## `App/ModSettings.x`
 
 **file overview** (was L1)
-> Settings: a Taurus Settings row at the end of Spotify's settings list opens the mod's own page: the
+> Settings: a VexoraSpotify Settings row at the end of Spotify's settings list opens the mod's own page: the
 > Appearance card with Redesigned UI, Karaoke in the redesign (Sing, Redesigned/Lyrics/SingSettings.m), then a
 > page per part of Spotify, each holding what that part offers in the stored look (App/Pages.m: Navbar,
 > Player, Lyrics, Home & Library for the native look, Albums for the redesign), Audio effects

@@ -31,7 +31,13 @@ PLIST="$WORK/${APP_DIR}Info.plist"
 
 xcrun clang -fobjc-arc -framework Foundation -F/System/Library/PrivateFrameworks -framework CoreUI -lcompression \
   "$ROOT/scripts/car-tool.m" -o "$WORK/car-tool" 2>/dev/null || skip "car-tool did not build"
-"$WORK/car-tool" svg "$CAR" AppIcon_Assets/Logo "$WORK/Logo.svg" || skip "no logo in Spotify's icon"
+NEEDS_LOGO=0
+for TEMPLATE in "$ROOT"/icons/*.icon; do
+  [ -f "$TEMPLATE/Assets/Art.png" ] || NEEDS_LOGO=1
+done
+if [ "$NEEDS_LOGO" = 1 ]; then
+  "$WORK/car-tool" svg "$CAR" AppIcon_Assets/Logo "$WORK/Logo.svg" || skip "no logo in Spotify's icon"
+fi
 
 NAMES=()
 PREVIEWS="$WORK/${APP_DIR}SGAppIconPreviews"
@@ -40,10 +46,14 @@ for TEMPLATE in "$ROOT"/icons/*.icon; do
   NAME="$(basename "$TEMPLATE" .icon)"
   cp -R "$TEMPLATE" "$WORK/art/$NAME.icon"
   mkdir -p "$WORK/art/$NAME.icon/Assets"
-  cp "$WORK/Logo.svg" "$WORK/art/$NAME.icon/Assets/Logo.svg"
+  if [ -f "$TEMPLATE/Assets/Art.png" ]; then
+    cp "$TEMPLATE/Assets/Art.png" "$WORK/art/$NAME.icon/Assets/Art.png"
+  else
+    cp "$WORK/Logo.svg" "$WORK/art/$NAME.icon/Assets/Logo.svg"
+  fi
   "$ICTOOL" "$WORK/art/$NAME.icon" --export-image --output-file "$PREVIEWS/$NAME.png" --platform iOS \
     --rendition Default --width 60 --height 60 --scale 3 >/dev/null 2>&1 || skip "ictool could not draw $NAME"
-  [ "$NAME" = Spotify ] || NAMES+=("$NAME")
+  NAMES+=("$NAME")
 done
 
 # An asset's identifier in the catalog is a hash of its name, and one already taken by Spotify's makes

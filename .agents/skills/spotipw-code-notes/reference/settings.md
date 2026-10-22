@@ -23,7 +23,7 @@
 
 **`NSArray<UIColor *> *SGGlowRainbowColors(void);`** (was L16)
 > The rainbow the switch circles its rim with: the stops in order, first and last the same pink so the
-> turn has no seam. Shared so the Taurus wordmark wears the same one.
+> turn has no seam. Shared so the VexoraSpotify wordmark wears the same one.
 
 ## `Settings/SGGlowSwitch.m`
 

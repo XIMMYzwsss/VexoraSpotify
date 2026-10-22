@@ -3,15 +3,22 @@
 #import "About.h"
 
 static NSArray<NSString *> *iconFiles(void) {
-    return @[@"Spotify", @"Glass", @"Green", @"White", @"Pink", @"Blue", @"Purple", @"Orange", @"Lime"];
+    return @[
+        @"VexoraSpotify", @"EllieTLOU", @"EvilSpotify", @"Swift", @"MarinKitagawa",
+        @"Spotify", @"Glass", @"Green", @"White", @"Pink", @"Blue", @"Purple", @"Orange", @"Lime",
+    ];
 }
 
 static NSArray<NSString *> *iconTitles(void) {
-    return @[@"Spotify", @"Liquid Glass", @"Green", @"White", @"Pink", @"Blue", @"Purple", @"Orange", @"Lime"];
+    return @[
+        @"VexoraSpotify", @"Ellie TLOU", @"Evil Spotify", @"Swift", @"Marin Kitagawa",
+        @"Spotify", @"Liquid Glass", @"Green", @"White", @"Pink", @"Blue", @"Purple", @"Orange", @"Lime",
+    ];
 }
 
 static NSString *alternateName(NSString *file) {
-    return [file isEqualToString:@"Spotify"] ? nil : [@"SGAppIcon" stringByAppendingString:file];
+    if ([file isEqualToString:@"VexoraSpotify"]) return nil;
+    return [@"SGAppIcon" stringByAppendingString:file];
 }
 
 // The icons this build has: one built without Xcode 26 has none but Spotify's.
@@ -25,9 +32,12 @@ static NSArray<NSString *> *availableFiles(void) {
 
 static NSString *currentFile(void) {
     NSString *name = UIApplication.sharedApplication.alternateIconName;
-    for (NSString *file in iconFiles())
-        if ((!name && !alternateName(file)) || [alternateName(file) isEqualToString:name]) return file;
-    return iconFiles().firstObject;
+    if (!name) return @"VexoraSpotify";
+    for (NSString *file in iconFiles()) {
+        NSString *alt = alternateName(file);
+        if (alt && [alt isEqualToString:name]) return file;
+    }
+    return @"VexoraSpotify";
 }
 
 static NSString *titleOf(NSString *file) {

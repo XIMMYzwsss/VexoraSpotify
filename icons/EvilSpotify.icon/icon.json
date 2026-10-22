@@ -1,0 +1,48 @@
+{
+  "fill": {
+    "linear-gradient": [
+      "display-p3:0.92000,0.22000,0.28000,1.00000",
+      "display-p3:0.62000,0.08000,0.14000,1.00000"
+    ]
+  },
+  "fill-specializations": [
+    {
+      "appearance": "dark",
+      "value": {
+        "linear-gradient": [
+          "display-p3:0.72000,0.12000,0.18000,1.00000",
+          "display-p3:0.32000,0.04000,0.08000,1.00000"
+        ]
+      }
+    }
+  ],
+  "groups": [
+    {
+      "layers": [
+        {
+          "fill": {
+            "solid": "extended-gray:1.00000,1.00000"
+          },
+          "glass": true,
+          "image-name": "Logo.svg",
+          "name": "Logo",
+          "position": {
+            "scale": 1.22,
+            "translation-in-points": [0, 0]
+          }
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.1
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared"
+  }
+}
