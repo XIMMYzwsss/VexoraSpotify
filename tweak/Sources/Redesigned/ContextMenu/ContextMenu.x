@@ -39,9 +39,9 @@ static const NSTimeInterval kQuickWait = 4;
 static const NSTimeInterval kRequestWindow = 3;
 
 static NSString *const kSheetClass = @"_TtC24ContextMenu_InternalImpl25ContextMenuViewController";
-static NSString *const kTopMenu = @"com.spotipw.taurus.systemmenu.top";
-static NSString *const kQuickMenu = @"com.spotipw.taurus.systemmenu.quick";
-static NSString *const kMoreMenu = @"com.spotipw.taurus.systemmenu.more";
+static NSString *const kTopMenu = @"com.spotipw.vexoraspotify.systemmenu.top";
+static NSString *const kQuickMenu = @"com.spotipw.vexoraspotify.systemmenu.quick";
+static NSString *const kMoreMenu = @"com.spotipw.vexoraspotify.systemmenu.more";
 // The last complete set of Spotify's rows for each kind of sheet, for More to show before the live ones come.
 static NSString *const kStoredRowsKey = @"spotifyglass.redesign.player.menuRows";
 
