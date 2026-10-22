@@ -324,6 +324,8 @@ static BOOL isSettingsRoot(UIViewController *list) {
     return YES;
 }
 
+static void updatePlanBadge(UIView *root);
+
 %hook _TtC21Settings_PlatformImpl26SettingsListViewController
 - (void)viewDidLayoutSubviews {
     %orig;
