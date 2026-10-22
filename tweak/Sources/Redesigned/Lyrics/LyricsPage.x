@@ -3,7 +3,7 @@
 #import "Redesigned/Kit/SGRBridges.h"
 #import "LyricsLook.h"
 
-static char kPageGlassKey, kBackdropKey, kRadAKey, kRadBKey, kObsKey;
+static char kPageGlassKey, kBackdropKey, kObsKey;
 static const NSInteger kLyricsSolidBackgroundTag = 88002;
 static const NSInteger kLyricsRadialGlowTagA = 88003;
 static const NSInteger kLyricsRadialGlowTagB = 88004;

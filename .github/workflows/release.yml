@@ -25,6 +25,9 @@ jobs:
     needs: release-please
     if: needs.release-please.outputs.created == 'true'
     runs-on: macos-latest
+    concurrency:
+      group: vexora-macos
+      cancel-in-progress: true
     env:
       THEOS: ${{ github.workspace }}/theos
     steps:

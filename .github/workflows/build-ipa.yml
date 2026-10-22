@@ -19,6 +19,10 @@ env:
 permissions:
   contents: read
 
+concurrency:
+  group: vexora-macos
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: macos-latest
