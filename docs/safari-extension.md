@@ -1,6 +1,6 @@
-# Open in Spotify for Taurus
+# Open in Spotify for VexoraSpotify
 
-The Taurus build now includes a Safari web extension, built from source in
+The VexoraSpotify build now includes a Safari web extension, built from source in
 `extension/OpenSpotify`. It opens standard Spotify URIs, so it does not depend on
 EeveeSpotify's `spotify://eevee/...` URL handler. `make build`, `make release`, and
 `make install` include it by default. Use `SAFARI=0` or the pipeline's `--no-safari`
@@ -8,11 +8,11 @@ option to exclude it.
 
 ## Build and enable
 
-1. Install full Xcode and select its developer directory. Follow Taurus's existing
+1. Install full Xcode and select its developer directory. Follow VexoraSpotify's existing
    README for Theos, iPhoneOS 26+ SDK, cyan, and the other build dependencies.
-2. Put your own decrypted Spotify IPA (the version supported by Taurus) in `ipa/`.
+2. Put your own decrypted Spotify IPA (the version supported by VexoraSpotify) in `ipa/`.
 3. Run `make test-safari`, then `make release`. The output is
-   `out/Taurus-<mod version>.ipa`.
+   `out/VexoraSpotify-<mod version>.ipa`.
 4. Sign and sideload the output with a signer that retains and signs embedded
    extensions. The extension must have its own valid signature/provisioning and a
    bundle ID prefixed by the final host app ID. Some sideloaders offer a switch to
@@ -29,13 +29,13 @@ The Safari toolbar popup can turn automatic opening off. Manual links still work
 **Dismiss** hides the fallback for the current destination. Existing tabs may need
 reloading after the extension is first enabled or its website permissions change.
 
-To build just the extension with Xcode, without compiling the Taurus tweak:
+To build just the extension with Xcode, without compiling the VexoraSpotify tweak:
 
 ```sh
 bash scripts/build-safari-extension.sh /path/to/Spotify.app/Info.plist out/safari-extension
 ```
 
-That produces `out/safari-extension/TaurusOpenSpotify.appex`, ad-hoc signed for
+That produces `out/safari-extension/VexoraSpotifyOpenSpotify.appex`, ad-hoc signed for
 packaging. It is not an independently installable iPhone app. The normal pipeline
 passes it to cyan alongside the existing Live Activity extension. Final IPA signing
 is still necessary. `BUNDLE_ID=your.host.id` sets the generated extension ID's prefix;
@@ -70,11 +70,11 @@ downloads, page actions, or links before Safari reaches a permitted Spotify host
 It cannot intercept links inside another app's embedded browser, repair a dead or
 geoblocked short link, or force Spotify to support an unknown URI. Opaque short
 links without usable metadata depend on the link provider's redirect. If official
-Spotify is installed alongside Taurus and both register `spotify:`, iOS chooses the
+Spotify is installed alongside VexoraSpotify and both register `spotify:`, iOS chooses the
 handler; standard URIs cannot guarantee which copy opens. Browser protections may
 require a deliberate tap. Permissions must be granted for each relevant hostname.
 
-Verified locally on October 19, 2026: the complete Taurus 0.60.2 IPA built with
+Verified locally on October 19, 2026: the complete VexoraSpotify 0.60.2 IPA built with
 Xcode 27.1 against a supplied decrypted Spotify 9.1.90 IPA. The standalone native
 extension passed signature verification, and the finished IPA passed archive CRC,
 bundle identity/version, resource consistency and injection checks. Routing,
@@ -86,9 +86,9 @@ No source IPA, built IPA or signing credentials are included in this contributio
 The browser smoke test is optional:
 
 ```sh
-python3 -m venv /tmp/taurus-safari-tests
-/tmp/taurus-safari-tests/bin/pip install playwright
-/tmp/taurus-safari-tests/bin/python tests/open-spotify/browser_check.py
+python3 -m venv /tmp/vexoraspotify-safari-tests
+/tmp/vexoraspotify-safari-tests/bin/pip install playwright
+/tmp/vexoraspotify-safari-tests/bin/python tests/open-spotify/browser_check.py
 ```
 
 It uses installed Google Chrome, fixtures and mocked extension APIs. It does not
@@ -99,7 +99,7 @@ iOS 26+, enable the Safari extension, and test a track, album, playlist, episode
 localized URL, embed URL and short link. Cancel one app-launch prompt, return from
 Spotify, navigate within Spotify's web player, and reload: there should be no prompt
 loop. Disable automatic opening and check that the visible link still opens the
-right content. Confirm the Live Activity and normal Taurus features still work.
+right content. Confirm the Live Activity and normal VexoraSpotify features still work.
 
 ## Source references
 
