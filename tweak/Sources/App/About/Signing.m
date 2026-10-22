@@ -4,7 +4,7 @@
 #import "App/Onboarding/Onboarding.h"
 #import <dlfcn.h>
 
-NSString *const SGSigningHelpURL = @"https://github.com/samj-exe/taurus#signing";
+NSString *const SGSigningHelpURL = @"https://github.com/XIMMYzwsss/VexoraSpotify#signing";
 
 static NSString *const kWarned = @"spotifyglass.signing.warned";
 static BOOL sg_fixPending;
