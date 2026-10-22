@@ -42,7 +42,7 @@ jobs:
       - name: Install tools
         run: |
           brew install make dpkg ldid
-          python3 -m pip install --break-system-packages git+https://github.com/asdfzxcvbn/pyzule-rw.git
+          python3 -m pip install --break-system-packages pillow git+https://github.com/asdfzxcvbn/pyzule-rw.git
 
       - name: Download IPA
         env:
