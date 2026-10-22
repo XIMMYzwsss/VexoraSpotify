@@ -1,6 +1,7 @@
 // Discord status for this Spotify app, the same presence Vexora sends (Listening to Vexora).
 #import "VexoraRPC.h"
 #import "Core/SGCore.h"
+#import "Settings/SGPageStyle.h"
 #import "Shared/Lyrics/Lyrics.h"
 #import "Shared/Player/PlayerState.h"
 #import <Security/Security.h>
