@@ -20,7 +20,7 @@ static NSDictionary<NSString *, id> *forcedAttributes(void) {
         @"catalogue": @"premium",
         @"financial-product": @"pr:premium,tc:0",
         @"is-eligible-premium-unboxing": @YES,
-        @"name": @"Spotify Premium",
+        @"name": @"Vexora Spotify",
         @"nft-disabled": @"1",
         @"on-demand": @YES,
         @"payments-initial-campaign": @"default",
