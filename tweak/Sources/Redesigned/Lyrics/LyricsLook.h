@@ -66,6 +66,7 @@ SGRLyricsAnimation SGRLyricsAnimationNow(void);
 // The presets, by name, Apple Music's first.
 NSArray<NSString *> *SGRLyricsLookPresetNames(void);
 NSInteger SGRLyricsVexoraPresetIndex(void);
+BOOL SGRLyricsVexoraLookActive(void);
 SGRLyricsLook SGRLyricsLookPreset(NSUInteger index);
 // The preset the look is, or -1 for a look of the sliders' own.
 NSInteger SGRLyricsLookPresetIndex(SGRLyricsLook look);

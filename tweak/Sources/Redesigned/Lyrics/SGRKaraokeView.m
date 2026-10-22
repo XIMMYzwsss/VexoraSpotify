@@ -30,7 +30,7 @@ static NSTimeInterval sgWholeFade = 0.35;
 static BOOL sgLetters, sgBounce;
 static CGFloat sgLetterLift = 5, sgGlow = 8, sgSpread = 0.5, sgWaveGain = 1, sgGlowGain = 1;
 static double sgFloatMinMs = 700;
-static BOOL sg_outline;
+static BOOL sg_outline, sg_vexoraGlow;
 static const CGFloat kAnchor = 0.28;   // where the sung line rests, as a share of the height
 static const CGFloat kEdgeFade = 0.1;  // the lines fade out over this share at the top and bottom
 static const CGFloat kBlurPerLine = 1.4, kMaxBlur = 6;
@@ -203,6 +203,12 @@ static UIView *letterHost(NSString *text, UIFont *font, UIColor *litColor, CGRec
     // mask leaves nothing of it, and a song has hundreds of words waiting their turn.
     _lit.hidden = YES;
     [self addSubview:_lit];
+    if (sg_vexoraGlow && !_letters.count) {
+        _lit.layer.shadowOffset = CGSizeZero;
+        _lit.layer.shadowColor = litColor.CGColor;
+        _lit.layer.shadowRadius = 18;
+        _lit.layer.shadowOpacity = 0.95;
+    }
 
     CGFloat width = self.bounds.size.width + sgFillEdge;
     _fill = [CAGradientLayer layer];
@@ -261,7 +267,7 @@ static UIView *letterHost(NSString *text, UIFont *font, UIColor *litColor, CGRec
         UILabel *letter = _letters[i];
         CGFloat lift = sgLetterLift * sgWaveGain * f;
         CGFloat opacity = MIN(1, MAX(0, f) * MIN(1, sgGlowGain));
-        CGFloat radius = sgGlow * sgGlowGain;
+        CGFloat radius = sgGlow * sgGlowGain * (sg_vexoraGlow ? 1.45 : 1);
         if (fabs(letter.layer.shadowOpacity - opacity) > 0.01 || letter.transform.ty != -lift) {
             letter.transform = CGAffineTransformMakeTranslation(0, -lift);
             letter.layer.shadowOpacity = opacity;
@@ -845,6 +851,11 @@ static const NSUInteger kLinesPerFrame = 4;
             [word.lit.layer removeAllAnimations];
             word.lit.alpha = 1;
             word.lit.hidden = NO;
+            if (sg_vexoraGlow) {
+                word.lit.layer.shadowOffset = CGSizeZero;
+                word.lit.layer.shadowOpacity = 1;
+                word.lit.layer.shadowRadius = 22;
+            }
             [word fillTo:word.whole ? CGFLOAT_MAX : -CGFLOAT_MAX];
             [word settle];
             if (word.whole) [whole addObject:word];
@@ -871,6 +882,7 @@ static const NSUInteger kLinesPerFrame = 4;
             [word fillTo:-CGFLOAT_MAX];
             word.lit.hidden = YES;
             word.lit.alpha = 1;
+            if (sg_vexoraGlow) word.lit.layer.shadowOpacity = 0;
         }
     }];
 }
@@ -1270,6 +1282,8 @@ typedef struct {
     sgStagger = motion.stagger;
     sgWholeFade = motion.fade;
     sg_outline = SGRLyricsOutlineEnabled();
+    sg_vexoraGlow = SGRLyricsVexoraLookActive();
+    if (sg_vexoraGlow) sgGlowGain = MAX(sgGlowGain, 1.35);
     if (!_compact) {
         _fontSize = look.size;
         _lineGap = look.spacing;

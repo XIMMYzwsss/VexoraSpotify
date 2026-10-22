@@ -26,6 +26,10 @@ NSInteger SGRLyricsVexoraPresetIndex(void) {
     return (NSInteger)(sizeof(presets) / sizeof(*presets) - 1);
 }
 
+BOOL SGRLyricsVexoraLookActive(void) {
+    return SGRLyricsLookPresetIndex(SGRLyricsLookNow()) == SGRLyricsVexoraPresetIndex();
+}
+
 SGRLyricsLook SGRLyricsLookPreset(NSUInteger index) {
     return presets[MIN(index, sizeof(presets) / sizeof(*presets) - 1)];
 }
