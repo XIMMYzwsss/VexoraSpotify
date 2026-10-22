@@ -13,17 +13,17 @@ spec.loader.exec_module(module)
 
 
 class IpaVerificationTests(unittest.TestCase):
-    def fixture(self, path, missing=None, extension_id='com.spotify.client.TaurusOpenSpotify'):
+    def fixture(self, path, missing=None, extension_id='com.spotify.client.VexoraSpotifyOpenSpotify'):
         base = 'Payload/Spotify.app/'
         host = {'CFBundleIdentifier': 'com.spotify.client', 'CFBundleShortVersionString': '9.1.90', 'CFBundleVersion': '123'}
-        extension = dict(host, CFBundleIdentifier=extension_id, CFBundleExecutable='TaurusOpenSpotify', NSExtension={
+        extension = dict(host, CFBundleIdentifier=extension_id, CFBundleExecutable='VexoraSpotifyOpenSpotify', NSExtension={
             'NSExtensionPointIdentifier': 'com.apple.Safari.web-extension',
-            'NSExtensionPrincipalClass': 'TaurusSafariWebExtensionHandler'})
+            'NSExtensionPrincipalClass': 'VexoraSpotifySafariWebExtensionHandler'})
         with zipfile.ZipFile(path, 'w') as archive:
             archive.writestr(base + 'Info.plist', plistlib.dumps(host))
-            ext = base + 'PlugIns/TaurusOpenSpotify.appex/'
+            ext = base + 'PlugIns/VexoraSpotifyOpenSpotify.appex/'
             archive.writestr(ext + 'Info.plist', plistlib.dumps(extension))
-            archive.writestr(ext + 'TaurusOpenSpotify', b'\xcf\xfa\xed\xfe' + b'fixture')
+            archive.writestr(ext + 'VexoraSpotifyOpenSpotify', b'\xcf\xfa\xed\xfe' + b'fixture')
             for source in module.RESOURCES.rglob('*'):
                 if source.is_file() and source.name != missing:
                     archive.writestr(ext + source.relative_to(module.RESOURCES).as_posix(), source.read_bytes())
