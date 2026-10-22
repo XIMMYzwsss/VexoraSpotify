@@ -24,13 +24,33 @@
 static const CGFloat kMargin = 24, kRowTighten = 2;
 static const CGFloat kCompactMargin = 24, kCompactGap = 6;   // the preview under the player's cover: tighter room, a peek of the next line
 static const CGFloat kDimAlpha = 0.3;
+static BOOL sg_outline, sg_vexoraGlow;
+
+static CGFloat dimAlpha(void) {
+    return sg_vexoraGlow ? 0.42 : kDimAlpha;
+}
+
+static void applyVexoraTextShadow(NSMutableDictionary *attrs) {
+    NSShadow *shadow = [NSShadow new];
+    shadow.shadowColor = [UIColor colorWithWhite:1 alpha:0.72];
+    shadow.shadowBlurRadius = 10;
+    shadow.shadowOffset = CGSizeZero;
+    attrs[NSShadowAttributeName] = shadow;
+}
+
+static void applyVexoraLayerGlow(CALayer *layer) {
+    layer.shadowColor = UIColor.whiteColor.CGColor;
+    layer.shadowOffset = CGSizeZero;
+    layer.shadowRadius = 22;
+    layer.shadowOpacity = 0.38;
+    layer.masksToBounds = NO;
+}
 // The animation chosen on the Lyrics page (SGRLyricsAnimation), read for every view when the look changes.
 static CGFloat sgFillEdge = 22, sgLift = 2.5, sgDimScale = 0.97, sgMove = 0.7, sgDamping = 0.86, sgStagger = 0.04;
 static NSTimeInterval sgWholeFade = 0.35;
 static BOOL sgLetters, sgBounce;
 static CGFloat sgLetterLift = 5, sgGlow = 8, sgSpread = 0.5, sgWaveGain = 1, sgGlowGain = 1;
 static double sgFloatMinMs = 700;
-static BOOL sg_outline, sg_vexoraGlow;
 static const CGFloat kAnchor = 0.28;   // where the sung line rests, as a share of the height
 static const CGFloat kEdgeFade = 0.1;  // the lines fade out over this share at the top and bottom
 static const CGFloat kBlurPerLine = 1.4, kMaxBlur = 6;
@@ -116,13 +136,14 @@ static BOOL alignsRight(SGKaraokeLine *line) {
 static UIColor *dimFromLit(UIColor *lit) {
     CGFloat r = 0, g = 0, b = 0, a = 0;
     [lit getRed:&r green:&g blue:&b alpha:&a];
-    return [UIColor colorWithRed:r green:g blue:b alpha:kDimAlpha];
+    return [UIColor colorWithRed:r green:g blue:b alpha:dimAlpha()];
 }
 
-static UILabel *wordLabel(NSString *text, UIFont *font, UIColor *color, CGRect frame, BOOL rightToLeft, BOOL outlined) {
+static UILabel *wordLabel(NSString *text, UIFont *font, UIColor *color, CGRect frame, BOOL rightToLeft, BOOL outlined, BOOL lit) {
     UILabel *label = [[UILabel alloc] initWithFrame:frame];
     label.font = font;
-    BOOL useAttrs = rightToLeft || outlined;
+    BOOL vexoraLit = sg_vexoraGlow && lit;
+    BOOL useAttrs = rightToLeft || outlined || vexoraLit;
     if (!useAttrs) {
         label.text = text;
         label.textColor = color;
@@ -134,12 +155,14 @@ static UILabel *wordLabel(NSString *text, UIFont *font, UIColor *color, CGRect f
         attrs[NSStrokeColorAttributeName] = UIColor.blackColor;
         attrs[NSStrokeWidthAttributeName] = @(-2.0);
     }
+    if (vexoraLit) applyVexoraTextShadow(attrs);
     if (rightToLeft) {
         NSMutableParagraphStyle *paragraph = [NSMutableParagraphStyle new];
         paragraph.baseWritingDirection = NSWritingDirectionRightToLeft;
         attrs[NSParagraphStyleAttributeName] = paragraph;
     }
     label.attributedText = [[NSAttributedString alloc] initWithString:text attributes:attrs];
+    if (vexoraLit) applyVexoraLayerGlow(label.layer);
     return label;
 }
 
@@ -152,8 +175,8 @@ static UIView *letterHost(NSString *text, UIFont *font, UIColor *litColor, CGRec
                           usingBlock:^(NSString *letter, NSRange range, NSRange enclosing, BOOL *stop) {
         CGFloat x = [[text substringToIndex:range.location] sizeWithAttributes:attributes].width;
         CGFloat wide = ceil([letter sizeWithAttributes:attributes].width) + 2;
-        UILabel *label = wordLabel(letter, font, litColor, CGRectMake(floor(x), 0, wide, bounds.size.height), NO, sg_outline);
-        label.layer.shadowColor = litColor.CGColor;
+        UILabel *label = wordLabel(letter, font, litColor, CGRectMake(floor(x), 0, wide, bounds.size.height), NO, sg_outline, YES);
+        label.layer.shadowColor = sg_vexoraGlow ? UIColor.whiteColor.CGColor : litColor.CGColor;
         label.layer.shadowOffset = CGSizeZero;
         label.layer.shadowOpacity = 0;
         [host addSubview:label];
@@ -196,22 +219,16 @@ static UIView *letterHost(NSString *text, UIFont *font, UIColor *litColor, CGRec
     _riseEnd = word.end;
     _rightToLeft = rightToLeft;
     UIColor *dim = dimFromLit(litColor);
-    [self addSubview:wordLabel(word.text, font, dim, self.bounds, rightToLeft, NO)];
+    [self addSubview:wordLabel(word.text, font, dim, self.bounds, rightToLeft, NO, NO)];
     BOOL waves = sgLetters && !rightToLeft && word.text.length > 1 && !SGKaraokeUnspacedScript(word.text);
     NSArray<UILabel *> *letters = nil;
     _lit = waves ? letterHost(word.text, font, litColor, self.bounds, &letters)
-                 : wordLabel(word.text, font, litColor, self.bounds, rightToLeft, sg_outline);
+                 : wordLabel(word.text, font, litColor, self.bounds, rightToLeft, sg_outline, YES);
     _letters = letters;
     // Hidden until the line is sung: a masked layer is drawn offscreen every frame even when the
     // mask leaves nothing of it, and a song has hundreds of words waiting their turn.
     _lit.hidden = YES;
     [self addSubview:_lit];
-    if (sg_vexoraGlow && !_letters.count) {
-        _lit.layer.shadowOffset = CGSizeZero;
-        _lit.layer.shadowColor = litColor.CGColor;
-        _lit.layer.shadowRadius = 18;
-        _lit.layer.shadowOpacity = 0.95;
-    }
 
     CGFloat width = self.bounds.size.width + sgFillEdge;
     _fill = [CAGradientLayer layer];
@@ -270,10 +287,11 @@ static UIView *letterHost(NSString *text, UIFont *font, UIColor *litColor, CGRec
         UILabel *letter = _letters[i];
         CGFloat lift = sgLetterLift * sgWaveGain * f;
         CGFloat opacity = MIN(1, MAX(0, f) * MIN(1, sgGlowGain));
-        CGFloat radius = sgGlow * sgGlowGain * (sg_vexoraGlow ? 1.45 : 1);
+        CGFloat radius = sgGlow * sgGlowGain * (sg_vexoraGlow ? 2.2 : 1);
+        if (sg_vexoraGlow) letter.layer.shadowColor = UIColor.whiteColor.CGColor;
         if (fabs(letter.layer.shadowOpacity - opacity) > 0.01 || letter.transform.ty != -lift) {
             letter.transform = CGAffineTransformMakeTranslation(0, -lift);
-            letter.layer.shadowOpacity = opacity;
+            letter.layer.shadowOpacity = sg_vexoraGlow ? MIN(1, opacity * 1.15) : opacity;
             letter.layer.shadowRadius = radius;
         }
     }
@@ -855,9 +873,9 @@ static const NSUInteger kLinesPerFrame = 4;
             word.lit.alpha = 1;
             word.lit.hidden = NO;
             if (sg_vexoraGlow) {
-                word.lit.layer.shadowOffset = CGSizeZero;
+                applyVexoraLayerGlow(word.lit.layer);
                 word.lit.layer.shadowOpacity = 1;
-                word.lit.layer.shadowRadius = 22;
+                word.lit.layer.shadowRadius = 26;
             }
             [word fillTo:word.whole ? CGFLOAT_MAX : -CGFLOAT_MAX];
             [word settle];

@@ -134,7 +134,7 @@ static void presentStyleSheet(UIViewController *owner) {
     });
     NSString *footer = @"Blur is how much the lines away from the one sung soften. Glow and Wave are how strongly a held "
                        @"word glows and its letters rise. 100% is Apple Music's. Outline applies to the sung line only. "
-                       @"Fullscreen background is the lyrics page behind the text; Solid black is opaque. Mojangles appears "
+                       @"Fullscreen background: Solid black fills the screen; Cover glow adds Vexora-style accent radials on black. Mojangles appears "
                        @"in Font when the Vexora preset is selected.";
     SGRLyricsStyleSheet *page = [[SGRLyricsStyleSheet alloc] initWithTitle:@"Lyrics Style" intro:nil
                                                                  sections:@[SGNotedSection(nil, rows, footer),

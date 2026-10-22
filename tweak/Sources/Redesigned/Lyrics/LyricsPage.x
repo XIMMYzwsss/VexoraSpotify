@@ -3,97 +3,139 @@
 #import "Redesigned/Kit/SGRBridges.h"
 #import "LyricsLook.h"
 
-static char kPageGlassKey, kBlackBgKey, kCoverKey, kBlurKey, kDimKey, kObsKey;
+static char kPageGlassKey, kBackdropKey, kRadAKey, kRadBKey, kObsKey;
 static const NSInteger kLyricsSolidBackgroundTag = 88002;
+static const NSInteger kLyricsRadialGlowTagA = 88003;
+static const NSInteger kLyricsRadialGlowTagB = 88004;
 
-static UIView *clearAncestors(UIView *view) {
-    UIView *top = view;
-    for (UIView *v = view; v && ![v isKindOfClass:UIWindow.class]
+static UIView *lyricsShell(UIView *page) {
+    UIView *shell = page;
+    for (UIView *v = page; v && ![v isKindOfClass:UIWindow.class]
             && ![NSStringFromClass(v.class) hasPrefix:@"UITransition"]; v = v.superview) {
+        shell = v;
         v.layer.backgroundColor = NULL;
-        top = v;
     }
-    return top;
+    return shell;
 }
 
-static void tuneSpotifyEffects(UIView *root, UIView *black, UIView *cover, UIView *blur, UIView *dim) {
-    NSSet<UIView *> *ours = [NSSet setWithObjects:black, cover, blur, dim, nil];
+static void hideSpotifyGlass(UIView *root, UIView *backdrop) {
     NSMutableArray<UIView *> *stack = [root.subviews mutableCopy];
     while (stack.count) {
         UIView *v = stack.lastObject;
         [stack removeLastObject];
-        if ([ours containsObject:v]) continue;
+        if (v == backdrop) continue;
         if ([v isKindOfClass:UIVisualEffectView.class]) v.hidden = YES;
         [stack addObjectsFromArray:v.subviews];
     }
 }
 
-static void refreshCoverGlow(UIView *page) {
-    UIImageView *cover = objc_getAssociatedObject(page, &kCoverKey);
-    if (!cover || cover.hidden) return;
-    UIImage *art = SGRNowPlayingArtwork(NULL, NULL);
-    if (art) cover.image = art;
+static UIColor *averageRGB(uint8_t *px, int count) {
+    if (count <= 0) return UIColor.whiteColor;
+    double r = 0, g = 0, b = 0;
+    for (int i = 0; i < count; i++) {
+        r += px[i * 4];
+        g += px[i * 4 + 1];
+        b += px[i * 4 + 2];
+    }
+    r /= count;
+    g /= count;
+    b /= count;
+    return [UIColor colorWithRed:r / 255.0 green:g / 255.0 blue:b / 255.0 alpha:1];
 }
 
-static void layoutLyricsBackground(UIView *page) {
+static NSArray<UIColor *> *colorsFromArtwork(UIImage *image) {
+    UIColor *fallback = [UIColor colorWithRed:30 / 255.0 green:215 / 255.0 blue:96 / 255.0 alpha:1];
+    if (!image.CGImage) return @[fallback, fallback];
+    const size_t w = 40, h = 40;
+    uint8_t *data = calloc(w * h, 4);
+    if (!data) return @[fallback, fallback];
+    CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+    CGContextRef ctx = CGBitmapContextCreate(data, w, h, 8, w * 4, space, kCGImageAlphaPremultipliedLast);
+    CGColorSpaceRelease(space);
+    if (!ctx) {
+        free(data);
+        return @[fallback, fallback];
+    }
+    CGContextDrawImage(ctx, CGRectMake(0, 0, w, h), image.CGImage);
+    CGContextRelease(ctx);
+    int quarter = (int)(w * h / 4);
+    UIColor *top = averageRGB(data, quarter);
+    UIColor *bottom = averageRGB(data + (w * h - quarter) * 4, quarter);
+    free(data);
+    return @[top, bottom];
+}
+
+static CAGradientLayer *radialLayer(UIColor *center, CGPoint origin) {
+    CAGradientLayer *layer = [CAGradientLayer layer];
+    layer.type = kCAGradientLayerRadial;
+    UIColor *edge = [center colorWithAlphaComponent:0];
+    layer.colors = @[(id)[center colorWithAlphaComponent:0.42].CGColor, (id)edge.CGColor];
+    layer.locations = @[@0, @1];
+    layer.startPoint = origin;
+    layer.endPoint = CGPointMake(MIN(1, origin.x + 0.55), MIN(1, origin.y + 0.55));
+    return layer;
+}
+
+static void refreshRadialColors(UIView *backdrop) {
+    NSArray<UIColor *> *pair = colorsFromArtwork(SGRNowPlayingArtwork(NULL, NULL));
+    for (NSNumber *tag in @[@(kLyricsRadialGlowTagA), @(kLyricsRadialGlowTagB)]) {
+        UIView *host = [backdrop viewWithTag:tag.integerValue];
+        if (!host) continue;
+        for (CALayer *sub in [host.layer.sublayers copy]) [sub removeFromSuperlayer];
+        CGPoint origin = tag.integerValue == kLyricsRadialGlowTagA ? CGPointMake(0.16, 0.08) : CGPointMake(0.92, 0.92);
+        CAGradientLayer *rad = radialLayer(pair[tag.integerValue == kLyricsRadialGlowTagA ? 0 : 1], origin);
+        rad.frame = host.bounds;
+        [host.layer addSublayer:rad];
+    }
+}
+
+static UIView *glowHost(NSInteger tag) {
+    UIView *host = [UIView new];
+    host.tag = tag;
+    host.userInteractionEnabled = NO;
+    host.accessibilityElementsHidden = YES;
+    host.backgroundColor = UIColor.clearColor;
+    return host;
+}
+
+static void layoutLyricsBackdrop(UIView *page) {
+    UIView *shell = lyricsShell(page);
+    sgr_lyricsPageRoot = shell;
     BOOL coverMode = SGRLyricsFullscreenBackgroundNow() == SGRLyricsFullscreenBackgroundCover;
-    UIView *black = objc_getAssociatedObject(page, &kBlackBgKey);
-    UIImageView *cover = objc_getAssociatedObject(page, &kCoverKey);
-    UIVisualEffectView *blur = objc_getAssociatedObject(page, &kBlurKey);
-    UIView *dim = objc_getAssociatedObject(page, &kDimKey);
 
-    if (!black) {
-        black = [UIView new];
-        black.tag = kLyricsSolidBackgroundTag;
-        black.backgroundColor = UIColor.blackColor;
-        black.opaque = YES;
-        black.userInteractionEnabled = NO;
-        black.accessibilityElementsHidden = YES;
-        objc_setAssociatedObject(page, &kBlackBgKey, black, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        [page insertSubview:black atIndex:0];
-    }
-    if (!cover) {
-        cover = [UIImageView new];
-        cover.contentMode = UIViewContentModeScaleAspectFill;
-        cover.clipsToBounds = YES;
-        cover.userInteractionEnabled = NO;
-        cover.accessibilityElementsHidden = YES;
-        objc_setAssociatedObject(page, &kCoverKey, cover, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        [page insertSubview:cover aboveSubview:black];
-    }
-    if (!blur) {
-        blur = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleDark]];
-        blur.userInteractionEnabled = NO;
-        blur.accessibilityElementsHidden = YES;
-        objc_setAssociatedObject(page, &kBlurKey, blur, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        [page insertSubview:blur aboveSubview:cover];
-    }
-    if (!dim) {
-        dim = [UIView new];
-        dim.backgroundColor = [UIColor colorWithWhite:0 alpha:0.45];
-        dim.userInteractionEnabled = NO;
-        dim.accessibilityElementsHidden = YES;
-        objc_setAssociatedObject(page, &kDimKey, dim, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        [page insertSubview:dim aboveSubview:blur];
+    UIView *backdrop = objc_getAssociatedObject(shell, &kBackdropKey);
+    if (!backdrop) {
+        backdrop = [UIView new];
+        backdrop.tag = kLyricsSolidBackgroundTag;
+        backdrop.backgroundColor = UIColor.blackColor;
+        backdrop.opaque = YES;
+        backdrop.userInteractionEnabled = NO;
+        backdrop.accessibilityElementsHidden = YES;
+        [backdrop addSubview:glowHost(kLyricsRadialGlowTagA)];
+        [backdrop addSubview:glowHost(kLyricsRadialGlowTagB)];
+        objc_setAssociatedObject(shell, &kBackdropKey, backdrop, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [shell insertSubview:backdrop atIndex:0];
     }
 
-    black.frame = page.bounds;
-    black.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    cover.frame = CGRectInset(page.bounds, -page.bounds.size.width * 0.15, -page.bounds.size.height * 0.15);
-    cover.center = CGPointMake(CGRectGetMidX(page.bounds), CGRectGetMidY(page.bounds));
-    cover.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    blur.frame = page.bounds;
-    blur.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    dim.frame = page.bounds;
-    dim.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    backdrop.frame = shell.bounds;
+    backdrop.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [shell sendSubviewToBack:backdrop];
 
-    black.hidden = coverMode;
-    cover.hidden = blur.hidden = dim.hidden = !coverMode;
-    if (coverMode) refreshCoverGlow(page);
+    for (NSNumber *tag in @[@(kLyricsRadialGlowTagA), @(kLyricsRadialGlowTagB)]) {
+        UIView *host = [backdrop viewWithTag:tag.integerValue];
+        host.frame = backdrop.bounds;
+        host.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        host.hidden = !coverMode;
+    }
 
-    page.opaque = !coverMode;
-    page.backgroundColor = coverMode ? UIColor.clearColor : UIColor.blackColor;
-    tuneSpotifyEffects(page, black, cover, blur, dim);
+    shell.opaque = YES;
+    shell.backgroundColor = UIColor.blackColor;
+    page.opaque = YES;
+    page.backgroundColor = UIColor.blackColor;
+    page.layer.backgroundColor = NULL;
+
+    hideSpotifyGlass(shell, backdrop);
+    if (coverMode) refreshRadialColors(backdrop);
 
     UIVisualEffectView *glass = SGGlassFor(page, &kPageGlassKey);
     glass.hidden = YES;
@@ -106,21 +148,26 @@ static void layoutLyricsBackground(UIView *page) {
     %orig(nil);
 }
 
+- (void)didMoveToWindow {
+    %orig;
+    if (self.window) [(UIView *)self setNeedsLayout];
+}
+
 - (void)layoutSubviews {
     %orig;
     UIView *page = (UIView *)self;
     if (page.bounds.size.height < 200) return;
-
-    page.layer.backgroundColor = NULL;
-    sgr_lyricsPageRoot = clearAncestors(page);
-    layoutLyricsBackground(page);
+    layoutLyricsBackdrop(page);
 
     if (!objc_getAssociatedObject(page, &kObsKey)) {
         id token = [NSNotificationCenter.defaultCenter addObserverForName:SGRLyricsLookDidChangeNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
             [page setNeedsLayout];
         }];
         id token2 = [NSNotificationCenter.defaultCenter addObserverForName:SGRNowPlayingArtworkDidChangeNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
-            refreshCoverGlow(page);
+            UIView *shell = lyricsShell(page);
+            UIView *backdrop = objc_getAssociatedObject(shell, &kBackdropKey);
+            if (backdrop && !backdrop.hidden && SGRLyricsFullscreenBackgroundNow() == SGRLyricsFullscreenBackgroundCover)
+                refreshRadialColors(backdrop);
         }];
         objc_setAssociatedObject(page, &kObsKey, @[token, token2], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
