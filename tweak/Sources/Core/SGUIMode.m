@@ -22,5 +22,5 @@ BOOL SGNativeUI(void) {
 }
 
 BOOL SGRedesignedUIStored(void) {
-    return SGRedesignAvailable() && SGFlag(SGKeyRedesign, YES);
+    return SGRedesignAvailable();
 }

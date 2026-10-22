@@ -1,7 +1,6 @@
 #import "Core/SGCore.h"
 #import "Settings/SGPageStyle.h"
 #import "About.h"
-#import "App/Onboarding/Onboarding.h"
 
 static void resetAll(void) {
     NSUserDefaults *store = NSUserDefaults.standardUserDefaults;
@@ -45,7 +44,6 @@ UIViewController *SGAboutPage(void) {
         SGSection(nil, @[
             withSymbol(SGPageRow(@"Licenses", ^UIViewController *{ return SGLicensesPage(); }), @"doc.text"),
             withSymbol(SGPageRow(@"Device logs", ^UIViewController *{ return SGDeviceLogsPage(); }), @"list.bullet.rectangle"),
-            withSymbol(SGActionRow(@"Welcome tour", nil, ^{ SGShowOnboarding(); }), @"map"),
         ]),
         SGSection(nil, @[
             withSymbol(SGActionRow(@"Export settings", nil, ^{ SGExportSettings(); }), @"square.and.arrow.up"),

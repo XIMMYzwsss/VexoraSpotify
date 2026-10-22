@@ -34,15 +34,6 @@ void SGSetRedesignedUI(BOOL on) {
     SGSetEnabled(SGKeyRedesign, on);
 }
 
-static void offerRestart(BOOL on) {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Restart Spotify"
-        message:on ? @"The redesign takes over when Spotify starts again. Spotify closes now; open it again to see it." : @"Spotify's own look comes back when Spotify starts again. Spotify closes now; open it again to see it."
-        preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Later" style:UIAlertActionStyleCancel handler:nil]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Restart now" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { SGRestartSpotify(); }]];
-    [SGTopController() presentViewController:alert animated:YES completion:nil];
-}
-
 static SGModRow *unavailableRow(void) {
     SGModRow *row = SGStatActionRow(@"Redesigned UI", nil, ^NSString *{ return @"Needs iOS 26"; }, ^{
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Redesigned UI"
@@ -60,21 +51,9 @@ UIViewController *SGAppearanceSettingsPage(void) {
         [rows addObject:unavailableRow()];
         [rows addObjectsFromArray:SGNativeAppearanceRows()];
     } else {
-        SGModRow *redesign = SGOptionRow(@"Redesigned UI", nil, SGKeyRedesign);
-        redesign.glows = YES;
-        redesign.info = SGRedesignedUIInfo;
-        redesign.changed = ^(BOOL on) {
-            SGSetRedesignedUI(on);
-            offerRestart(on);
-        };
-        [rows addObject:SGWithSymbol(redesign, @"sparkles")];
-        if (SGRedesignedUIStored()) {
-            [rows addObjectsFromArray:SGRAppearanceRows()];
-            [rows addObject:SGRHomeStyleRow()];
-            [rows addObject:SGRHomeTopPicksRow()];
-        } else {
-            [rows addObjectsFromArray:SGNativeAppearanceRows()];
-        }
+        [rows addObjectsFromArray:SGRAppearanceRows()];
+        [rows addObject:SGRHomeStyleRow()];
+        [rows addObject:SGRHomeTopPicksRow()];
         [rows addObjectsFromArray:SGAppFontRows()];
     }
     SGModSection *section = SGNotedSection(nil, rows, @"Changes apply after you restart Spotify.");

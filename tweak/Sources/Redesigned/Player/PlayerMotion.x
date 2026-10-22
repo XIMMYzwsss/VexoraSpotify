@@ -477,7 +477,8 @@ static void fadeCoverMask(CALayer *covers, CALayer *mask, float opacity, BOOL an
 // the list by its alpha as they come and go, cannot bring the cover back. Asked again for where it is going,
 // it does nothing, so the field's layout passes do not cut a fade short.
 static void setCoverShown(BOOL shown, BOOL animated) {
-    CALayer *covers = shown ? sg_maskedCovers : SGRPlayerCoverList().layer;
+    UIView *list = SGRPlayerCoverList();
+    CALayer *covers = list.layer ?: (shown ? nil : sg_maskedCovers);
     if (!covers) return;
     CALayer *mask = covers.mask;
     BOOL ours = mask && mask == sg_coverMask;
@@ -490,18 +491,21 @@ static void setCoverShown(BOOL shown, BOOL animated) {
         });
         return;
     }
-    if (covers == sg_maskedCovers || (mask && !ours)) return;
-    if (!mask) {
+    // Spotify rebuilds the list and drops the mask; a pass that already hid this layer has to put it back.
+    if (!ours) {
         mask = [CALayer layer];
         mask.backgroundColor = UIColor.blackColor.CGColor;
         covers.mask = mask;
         sg_coverMask = mask;
     }
+    BOOL held = sg_maskedCovers == covers && mask.opacity < 0.01f && !animated;
     sg_maskedCovers = covers;
+    if (held) return;
     fadeCoverMask(covers, mask, 0, animated, nil);
 }
 
-static BOOL coverShouldBeShown(void) {
+BOOL SGRPlayerSquareCoverShown(void) {
+    if (SGRPlayerLyricsOpen()) return NO;
     SGRPlayerBackgroundKind background = SGRPlayerBackground();
     return background != SGRPlayerBackgroundFill
         && !(background == SGRPlayerBackgroundAnimated
@@ -509,7 +513,7 @@ static BOOL coverShouldBeShown(void) {
 }
 
 static void updateCoverVisibility(BOOL animated) {
-    setCoverShown(coverShouldBeShown(), animated);
+    setCoverShown(SGRPlayerSquareCoverShown(), animated);
 }
 
 void SGRPlayerMotionFieldLaidOut(void) {

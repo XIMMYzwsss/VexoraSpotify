@@ -86,6 +86,8 @@ void SGRPlayerMotionLyricsChanged(void);
 void SGRPlayerMotionFieldLaidOut(void);
 void SGRPlayerMotionCoverLaidOut(void);
 BOOL SGRPlayerMotionShowing(void);
+// The square cover over the field. Off while the background is already that artwork, and while lyrics are up.
+BOOL SGRPlayerSquareCoverShown(void);
 UIView *SGRPlayerMotionPreview(void (^arrived)(void));
 CGFloat SGRPlayerClipDim(CGFloat luminance, BOOL contrast, BOOL lyrics);
 

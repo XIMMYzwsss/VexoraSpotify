@@ -656,6 +656,7 @@ static void setOpen(BOOL open, BOOL animated) {
         SGRSingControlRemoveForPage(overlay.stage);
         SGRPlayerCoverList().alpha = 1;
         [overlay removeFromSuperview];
+        SGRPlayerMotionCoverLaidOut();
     };
 
     if (!animated) {
@@ -678,6 +679,7 @@ static void setOpen(BOOL open, BOOL animated) {
                          animations:show completion:nil];
     }
     if (open) restartRest();
+    SGRPlayerMotionCoverLaidOut();
     else {
         [sg_rest invalidate];
         sg_rest = nil;
@@ -716,6 +718,7 @@ static void replace(void) {
     overlay.cover.layer.cornerRadius = thumbRadius(l, YES);
     overlay.lyrics.frame = overlay.stage.bounds;
     SGRPlayerCoverList().alpha = 0;
+    SGRPlayerMotionCoverLaidOut();
 }
 
 #pragma mark - the units
