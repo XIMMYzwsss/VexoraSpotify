@@ -14,10 +14,15 @@ static SGRLyricsLook presets[] = {
     {25, 16, 1, 1, 1},          // Compact
     {30, 24, 0, 0, 0},          // Calm: every line sharp, and nothing held glows or waves
     {32, 26, 1.4, 1.6, 1.8},    // Vivid
+    {34, 16, 0.4, 1.35, 0},     // Vexora: bold stacked lines, dim context, glow on the active line
 };
 
 NSArray<NSString *> *SGRLyricsLookPresetNames(void) {
-    return @[@"Apple Music", @"Large", @"Compact", @"Calm", @"Vivid"];
+    return @[@"Apple Music", @"Large", @"Compact", @"Calm", @"Vivid", @"Vexora"];
+}
+
+NSInteger SGRLyricsVexoraPresetIndex(void) {
+    return (NSInteger)(sizeof(presets) / sizeof(*presets) - 1);
 }
 
 SGRLyricsLook SGRLyricsLookPreset(NSUInteger index) {
