@@ -1,7 +1,8 @@
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRRepaint.h"
 
-static char kPageGlassKey;
+static char kPageGlassKey, kBlackBgKey;
+static const NSInteger kLyricsSolidBackgroundTag = 88002;
 
 static UIView *clearAncestors(UIView *view) {
     UIView *top = view;
@@ -14,7 +15,6 @@ static UIView *clearAncestors(UIView *view) {
 }
 
 %hook _TtC32Lyrics_FullscreenElementPageImpl14FullscreenView
-// A colour kept here is re-applied whenever UIKit feels like it, so it is refused outright.
 - (void)setBackgroundColor:(UIColor *)color {
     static dispatch_once_t once;
     dispatch_once(&once, ^{ SGLog(@"lyrics page paints itself %@ through UIView", color); });
@@ -29,12 +29,21 @@ static UIView *clearAncestors(UIView *view) {
     page.layer.backgroundColor = NULL;
     sgr_lyricsPageRoot = clearAncestors(page);
 
+    UIView *black = objc_getAssociatedObject(page, &kBlackBgKey);
+    if (!black) {
+        black = [UIView new];
+        black.tag = kLyricsSolidBackgroundTag;
+        black.backgroundColor = UIColor.blackColor;
+        black.userInteractionEnabled = NO;
+        black.accessibilityElementsHidden = YES;
+        objc_setAssociatedObject(page, &kBlackBgKey, black, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [page insertSubview:black atIndex:0];
+    }
+    black.frame = page.bounds;
+    black.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+
     UIVisualEffectView *glass = SGGlassFor(page, &kPageGlassKey);
-    if (glass.overrideUserInterfaceStyle != UIUserInterfaceStyleDark) glass.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-    glass.frame = page.bounds;
-    glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    // Full bleed, so the shape is spelled out: a fresh pane does not promise square corners.
-    SGShapeGlass(glass, 0, NO);
+    glass.hidden = YES;
 }
 %end
 

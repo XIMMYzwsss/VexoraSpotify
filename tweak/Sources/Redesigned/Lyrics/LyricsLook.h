@@ -17,11 +17,23 @@ typedef struct {
 // The five as one dictionary; unset is the first preset, Apple Music's.
 #define SGRKeyLyricsLook @"spotifyglass.redesign.lyricsLook"
 
+#define SGRKeyLyricsOutline @"spotifyglass.redesign.lyricsOutline"
+#define SGRKeyLyricsColor0 @"spotifyglass.redesign.lyricsColor0"
+#define SGRKeyLyricsColor1 @"spotifyglass.redesign.lyricsColor1"
+#define SGRKeyLyricsColor2 @"spotifyglass.redesign.lyricsColor2"
+
 // Posted on the main queue when the look changes; the object is whoever changed it, nil for none named.
 extern NSNotificationName const SGRLyricsLookDidChangeNotification;
 
 SGRLyricsLook SGRLyricsLookNow(void);
 void SGRSetLyricsLook(SGRLyricsLook look, id changer);
+
+BOOL SGRLyricsOutlineEnabled(void);
+UIColor *SGRLyricsColorAtIndex(NSUInteger index);
+NSString *SGRLyricsColorLabelAtIndex(NSUInteger index);
+void SGRSetLyricsColorAtIndex(NSUInteger index, UIColor *color, id changer);
+UIColor *SGRLyricsColorForLineAtIndex(NSUInteger lineIndex, NSUInteger lineCount);
+void SGRPickLyricsColorAtIndex(NSUInteger index);
 
 // The fonts the Font row lists, the chosen one's name, and the font itself at a size and weight.
 NSArray<NSString *> *SGRLyricsFontChoices(void);

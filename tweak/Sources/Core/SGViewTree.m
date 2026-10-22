@@ -35,6 +35,7 @@ BOOL SGHasClass(UIView *root, NSString *marker) {
 }
 
 BOOL SGKeepsColor(UIView *view) {
+    if (view.tag == 88002) return YES;   // Redesigned/Lyrics/LyricsPage.x solid background
     return [view isKindOfClass:UIImageView.class] || [view isKindOfClass:UILabel.class] || view.bounds.size.height <= 4;
 }
 

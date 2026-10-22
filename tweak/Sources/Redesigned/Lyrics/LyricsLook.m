@@ -97,7 +97,97 @@ void SGRResetLyricsLook(id changer) {
     [store removeObjectForKey:SGRKeyLyricsLook];
     [store removeObjectForKey:SGRKeyLyricsFont];
     [store removeObjectForKey:SGRKeyLyricsAnimation];
+    [store removeObjectForKey:SGRKeyLyricsOutline];
+    [store removeObjectForKey:SGRKeyLyricsColor0];
+    [store removeObjectForKey:SGRKeyLyricsColor1];
+    [store removeObjectForKey:SGRKeyLyricsColor2];
     [NSNotificationCenter.defaultCenter postNotificationName:SGRLyricsLookDidChangeNotification object:changer];
+}
+
+#pragma mark - lyrics text color and outline
+
+static const NSInteger kDefaultLyricsRGB = 0xFFFFFF;
+
+static NSInteger storedRGB(NSString *key) {
+    NSInteger rgb = SGInt(key, kDefaultLyricsRGB);
+    return rgb >= 0 && rgb <= 0xFFFFFF ? rgb : kDefaultLyricsRGB;
+}
+
+static UIColor *colorFromRGB(NSInteger rgb) {
+    CGFloat r = ((rgb >> 16) & 0xFF) / 255.0, g = ((rgb >> 8) & 0xFF) / 255.0, b = (rgb & 0xFF) / 255.0;
+    return [UIColor colorWithRed:r green:g blue:b alpha:1];
+}
+
+static NSInteger rgbFromColor(UIColor *color) {
+    CGFloat r = 0, g = 0, b = 0, a = 0;
+    [color getRed:&r green:&g blue:&b alpha:&a];
+    return ((NSInteger)lround(MIN(1, MAX(0, r)) * 255) << 16)
+         | ((NSInteger)lround(MIN(1, MAX(0, g)) * 255) << 8)
+         | (NSInteger)lround(MIN(1, MAX(0, b)) * 255);
+}
+
+BOOL SGRLyricsOutlineEnabled(void) {
+    return SGFlag(SGRKeyLyricsOutline, NO);
+}
+
+UIColor *SGRLyricsColorAtIndex(NSUInteger index) {
+    static NSString *const keys[] = {SGRKeyLyricsColor0, SGRKeyLyricsColor1, SGRKeyLyricsColor2};
+    return colorFromRGB(storedRGB(keys[MIN(index, 2)]));
+}
+
+NSString *SGRLyricsColorLabelAtIndex(NSUInteger index) {
+    static NSString *const keys[] = {SGRKeyLyricsColor0, SGRKeyLyricsColor1, SGRKeyLyricsColor2};
+    return [NSString stringWithFormat:@"#%06lX", (long)storedRGB(keys[MIN(index, 2)])];
+}
+
+void SGRSetLyricsColorAtIndex(NSUInteger index, UIColor *color, id changer) {
+    static NSString *const keys[] = {SGRKeyLyricsColor0, SGRKeyLyricsColor1, SGRKeyLyricsColor2};
+    if (index > 2 || !color) return;
+    SGSetInt(keys[index], rgbFromColor(color));
+    [NSNotificationCenter.defaultCenter postNotificationName:SGRLyricsLookDidChangeNotification object:changer];
+}
+
+static UIColor *blendColors(UIColor *from, UIColor *to, CGFloat t) {
+    t = MAX(0, MIN(1, t));
+    CGFloat r0 = 0, g0 = 0, b0 = 0, a0 = 0, r1 = 0, g1 = 0, b1 = 0, a1 = 0;
+    [from getRed:&r0 green:&g0 blue:&b0 alpha:&a0];
+    [to getRed:&r1 green:&g1 blue:&b1 alpha:&a1];
+    return [UIColor colorWithRed:r0 + (r1 - r0) * t green:g0 + (g1 - g0) * t blue:b0 + (b1 - b0) * t alpha:1];
+}
+
+UIColor *SGRLyricsColorForLineAtIndex(NSUInteger lineIndex, NSUInteger lineCount) {
+    UIColor *c0 = SGRLyricsColorAtIndex(0);
+    UIColor *c1 = SGRLyricsColorAtIndex(1);
+    UIColor *c2 = SGRLyricsColorAtIndex(2);
+    if (storedRGB(SGRKeyLyricsColor0) == storedRGB(SGRKeyLyricsColor1)
+        && storedRGB(SGRKeyLyricsColor1) == storedRGB(SGRKeyLyricsColor2))
+        return c0;
+    if (lineCount <= 1) return c0;
+    CGFloat t = (CGFloat)lineIndex / (CGFloat)(lineCount - 1);
+    if (t <= 0.5) return blendColors(c0, c1, t * 2);
+    return blendColors(c1, c2, (t - 0.5) * 2);
+}
+
+@interface SGRLyricsColorPicker : NSObject <UIColorPickerViewControllerDelegate>
+@property (nonatomic) NSUInteger slot;
+@end
+
+@implementation SGRLyricsColorPicker
+- (void)colorPickerViewControllerDidFinish:(UIColorPickerViewController *)picker {
+    SGRSetLyricsColorAtIndex(self.slot, picker.selectedColor, nil);
+}
+@end
+
+void SGRPickLyricsColorAtIndex(NSUInteger index) {
+    static SGRLyricsColorPicker *delegates[3];
+    index = MIN(index, 2);
+    if (!delegates[index]) delegates[index] = [SGRLyricsColorPicker new];
+    delegates[index].slot = index;
+    UIColorPickerViewController *picker = [UIColorPickerViewController new];
+    picker.supportsAlpha = NO;
+    picker.selectedColor = SGRLyricsColorAtIndex(index);
+    picker.delegate = delegates[index];
+    [SGTopController() presentViewController:picker animated:YES completion:nil];
 }
 
 NSInteger SGRLyricsAnimationIndex(void) {

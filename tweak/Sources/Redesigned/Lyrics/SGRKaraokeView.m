@@ -30,6 +30,7 @@ static NSTimeInterval sgWholeFade = 0.35;
 static BOOL sgLetters, sgBounce;
 static CGFloat sgLetterLift = 5, sgGlow = 8, sgSpread = 0.5, sgWaveGain = 1, sgGlowGain = 1;
 static double sgFloatMinMs = 700;
+static BOOL sg_outline;
 static const CGFloat kAnchor = 0.28;   // where the sung line rests, as a share of the height
 static const CGFloat kEdgeFade = 0.1;  // the lines fade out over this share at the top and bottom
 static const CGFloat kBlurPerLine = 1.4, kMaxBlur = 6;
@@ -112,23 +113,36 @@ static BOOL alignsRight(SGKaraokeLine *line) {
     return (line.align == SGKaraokeAlignTrailing) != readsRightToLeft(SGKaraokeLineText(line));
 }
 
+static UIColor *dimFromLit(UIColor *lit) {
+    CGFloat r = 0, g = 0, b = 0, a = 0;
+    [lit getRed:&r green:&g blue:&b alpha:&a];
+    return [UIColor colorWithRed:r green:g blue:b alpha:kDimAlpha];
+}
+
 static UILabel *wordLabel(NSString *text, UIFont *font, UIColor *color, CGRect frame, BOOL rightToLeft) {
     UILabel *label = [[UILabel alloc] initWithFrame:frame];
-    label.text = text;
     label.font = font;
-    label.textColor = color;
-    if (!rightToLeft) return label;
-    // A word of a line written right to left is set in the line's direction, so the punctuation at its
-    // ends falls where the whole line would put it, a word of a left to right script among them too.
-    NSMutableParagraphStyle *paragraph = [NSMutableParagraphStyle new];
-    paragraph.baseWritingDirection = NSWritingDirectionRightToLeft;
-    label.attributedText = [[NSAttributedString alloc] initWithString:text attributes:@{
-        NSFontAttributeName: font, NSForegroundColorAttributeName: color, NSParagraphStyleAttributeName: paragraph}];
+    NSMutableDictionary *attrs = [NSMutableDictionary dictionaryWithDictionary:@{
+        NSFontAttributeName: font, NSForegroundColorAttributeName: color}];
+    if (sg_outline) {
+        attrs[NSStrokeColorAttributeName] = UIColor.blackColor;
+        attrs[NSStrokeWidthAttributeName] = @(-3.0);
+    }
+    if (rightToLeft) {
+        NSMutableParagraphStyle *paragraph = [NSMutableParagraphStyle new];
+        paragraph.baseWritingDirection = NSWritingDirectionRightToLeft;
+        attrs[NSParagraphStyleAttributeName] = paragraph;
+    }
+    if (sg_outline || rightToLeft) label.attributedText = [[NSAttributedString alloc] initWithString:text attributes:attrs];
+    else {
+        label.text = text;
+        label.textColor = color;
+    }
     return label;
 }
 
 // The lit word as one label per letter, so each can rise and glow on its own as the sweep reaches it.
-static UIView *letterHost(NSString *text, UIFont *font, CGRect bounds, NSArray<UILabel *> **out) {
+static UIView *letterHost(NSString *text, UIFont *font, UIColor *litColor, CGRect bounds, NSArray<UILabel *> **out) {
     UIView *host = [[UIView alloc] initWithFrame:bounds];
     NSMutableArray<UILabel *> *letters = [NSMutableArray array];
     NSDictionary *attributes = @{NSFontAttributeName: font};
@@ -136,8 +150,8 @@ static UIView *letterHost(NSString *text, UIFont *font, CGRect bounds, NSArray<U
                           usingBlock:^(NSString *letter, NSRange range, NSRange enclosing, BOOL *stop) {
         CGFloat x = [[text substringToIndex:range.location] sizeWithAttributes:attributes].width;
         CGFloat wide = ceil([letter sizeWithAttributes:attributes].width) + 2;
-        UILabel *label = wordLabel(letter, font, UIColor.whiteColor, CGRectMake(floor(x), 0, wide, bounds.size.height), NO);
-        label.layer.shadowColor = UIColor.whiteColor.CGColor;
+        UILabel *label = wordLabel(letter, font, litColor, CGRectMake(floor(x), 0, wide, bounds.size.height), NO);
+        label.layer.shadowColor = litColor.CGColor;
         label.layer.shadowOffset = CGSizeZero;
         label.layer.shadowOpacity = 0;
         [host addSubview:label];
@@ -171,7 +185,7 @@ static UIView *letterHost(NSString *text, UIFont *font, CGRect bounds, NSArray<U
     BOOL _rightToLeft;
 }
 
-- (instancetype)initWithWord:(SGKaraokeWord *)word font:(UIFont *)font rightToLeft:(BOOL)rightToLeft {
+- (instancetype)initWithWord:(SGKaraokeWord *)word font:(UIFont *)font rightToLeft:(BOOL)rightToLeft litColor:(UIColor *)litColor {
     CGSize size = [word.text sizeWithAttributes:@{NSFontAttributeName: font}];
     self = [super initWithFrame:CGRectMake(0, 0, ceil(size.width), ceil(font.lineHeight))];
     if (!self) return nil;
@@ -179,10 +193,11 @@ static UIView *letterHost(NSString *text, UIFont *font, CGRect bounds, NSArray<U
     _riseStart = word.start;
     _riseEnd = word.end;
     _rightToLeft = rightToLeft;
-    [self addSubview:wordLabel(word.text, font, [UIColor colorWithWhite:1 alpha:kDimAlpha], self.bounds, rightToLeft)];
+    UIColor *dim = dimFromLit(litColor);
+    [self addSubview:wordLabel(word.text, font, dim, self.bounds, rightToLeft)];
     BOOL waves = sgLetters && !rightToLeft && word.text.length > 1 && !SGKaraokeUnspacedScript(word.text);
     NSArray<UILabel *> *letters = nil;
-    _lit = waves ? letterHost(word.text, font, self.bounds, &letters) : wordLabel(word.text, font, UIColor.whiteColor, self.bounds, rightToLeft);
+    _lit = waves ? letterHost(word.text, font, litColor, self.bounds, &letters) : wordLabel(word.text, font, litColor, self.bounds, rightToLeft);
     _letters = letters;
     // Hidden until the line is sung: a masked layer is drawn offscreen every frame even when the
     // mask leaves nothing of it, and a song has hundreds of words waiting their turn.
@@ -191,7 +206,7 @@ static UIView *letterHost(NSString *text, UIFont *font, CGRect bounds, NSArray<U
 
     CGFloat width = self.bounds.size.width + sgFillEdge;
     _fill = [CAGradientLayer layer];
-    _fill.colors = @[(id)UIColor.whiteColor.CGColor, (id)UIColor.whiteColor.CGColor, (id)UIColor.clearColor.CGColor];
+    _fill.colors = @[(id)litColor.CGColor, (id)litColor.CGColor, (id)UIColor.clearColor.CGColor];
     _fill.locations = @[@0, @((width - sgFillEdge) / width), @1];
     _fill.startPoint = CGPointMake(rightToLeft ? 1 : 0, 0.5);
     _fill.endPoint = CGPointMake(rightToLeft ? 0 : 1, 0.5);
@@ -698,7 +713,7 @@ static double secant(SGSweepKnot *knots, NSUInteger i) {
 // under: the line a backing row hangs under, nil for a line of its own. sweepsEstimates: the words of a
 // line timed only by the line are swept on their estimated times, rather than lit whole.
 - (instancetype)initWithLine:(SGKaraokeLine *)line width:(CGFloat)width style:(SGRKaraokeStyle *)style under:(SGRKaraokeLineView *)under
-                     blurred:(BOOL)blurred sweepsEstimates:(BOOL)sweepsEstimates;
+                     blurred:(BOOL)blurred sweepsEstimates:(BOOL)sweepsEstimates lineIndex:(NSInteger)lineIndex lineCount:(NSUInteger)lineCount;
 - (void)showTime:(double)ms;
 // Every word lit and left so, for lyrics with no timing: nothing is sung, so nothing is dim.
 - (void)showPlain;
@@ -723,13 +738,13 @@ static const CGFloat kTranslationLit = 0.6;
 
 // A sweep's word views, each put where the layout has it and told where it sits along the sweep.
 // start: NAN for words timed one by one, else when the run lights up whole.
-- (SGRKaraokeSweep *)sweepOf:(NSArray<SGKaraokeWord *> *)words font:(UIFont *)font frames:(NSArray<NSValue *> *)frames
-                     offsets:(NSArray<NSNumber *> *)offsets wholeFrom:(double)start {
+- (SGRKaraokeSweep *)sweepOf:(NSArray<SGKaraokeWord *> *)words font:(UIFont *)font UIColor:(UIColor *)litColor
+                      frames:(NSArray<NSValue *> *)frames offsets:(NSArray<NSNumber *> *)offsets wholeFrom:(double)start {
     if (!words.count || frames.count != words.count) return nil;
     BOOL rightToLeft = readsRightToLeft([[words valueForKey:@"text"] componentsJoinedByString:@""]);
     NSMutableArray<SGRKaraokeWordView *> *views = [NSMutableArray arrayWithCapacity:words.count];
     for (NSUInteger i = 0; i < words.count; i++) {
-        SGRKaraokeWordView *view = [[SGRKaraokeWordView alloc] initWithWord:words[i] font:font rightToLeft:rightToLeft];
+        SGRKaraokeWordView *view = [[SGRKaraokeWordView alloc] initWithWord:words[i] font:font rightToLeft:rightToLeft litColor:litColor];
         CGRect frame = frames[i].CGRectValue;
         view.center = CGPointMake(CGRectGetMidX(frame), CGRectGetMidY(frame));
         view.offset = offsets[i].doubleValue;
@@ -747,17 +762,19 @@ static double wholeFrom(SGKaraokeLine *run, BOOL sweepsEstimates) {
 }
 
 - (instancetype)initWithLine:(SGKaraokeLine *)line width:(CGFloat)width style:(SGRKaraokeStyle *)style under:(SGRKaraokeLineView *)under
-                     blurred:(BOOL)blurred sweepsEstimates:(BOOL)sweepsEstimates {
+                     blurred:(BOOL)blurred sweepsEstimates:(BOOL)sweepsEstimates lineIndex:(NSInteger)lineIndex
+                   lineCount:(NSUInteger)lineCount {
     self = [super initWithFrame:CGRectZero];
     if (!self) return nil;
     _line = line;
     BOOL backing = under != nil;
     SGRKaraokeLayout *layout = layOut(line, width, style, backing ? under.right : -1);
     _right = layout.right;
+    UIColor *lit = SGRLyricsColorForLineAtIndex(MAX(0, (NSUInteger)lineIndex), MAX(1, lineCount));
     NSMutableArray<SGRKaraokeSweep *> *sweeps = [NSMutableArray array];
-    SGRKaraokeSweep *sung = [self sweepOf:line.words font:style.lyrics frames:layout.lyricFrames offsets:layout.lyricOffsets
+    SGRKaraokeSweep *sung = [self sweepOf:line.words font:style.lyrics UIColor:lit frames:layout.lyricFrames offsets:layout.lyricOffsets
                                 wholeFrom:wholeFrom(line, sweepsEstimates)];
-    SGRKaraokeSweep *spoken = [self sweepOf:line.pronunciation.words font:style.pronunciation frames:layout.spokenFrames
+    SGRKaraokeSweep *spoken = [self sweepOf:line.pronunciation.words font:style.pronunciation UIColor:lit frames:layout.spokenFrames
                                     offsets:layout.spokenOffsets wholeFrom:wholeFrom(line.pronunciation, sweepsEstimates)];
     if (sung) [sweeps addObject:sung];
     if (spoken) [sweeps addObject:spoken];
@@ -769,7 +786,7 @@ static double wholeFrom(SGKaraokeLine *run, BOOL sweepsEstimates) {
         _translation = [[UILabel alloc] initWithFrame:layout.translation];
         _translation.numberOfLines = 0;
         _translation.font = style.translation;
-        _translation.textColor = UIColor.whiteColor;
+        _translation.textColor = lit;
         _translation.alpha = kDimAlpha;
         _translation.textAlignment = _right ? NSTextAlignmentRight : NSTextAlignmentLeft;
         _translation.text = secondaryText(line);
@@ -777,7 +794,7 @@ static double wholeFrom(SGKaraokeLine *run, BOOL sweepsEstimates) {
     }
     if (layout.backingTop > 0) {
         _backing = [[SGRKaraokeLineView alloc] initWithLine:line.backing width:width style:style.backing under:self blurred:NO
-                                            sweepsEstimates:sweepsEstimates];
+                                            sweepsEstimates:sweepsEstimates lineIndex:lineIndex lineCount:lineCount];
         _backing.alpha = kBackingAlpha;
         _backing.frame = CGRectMake(0, layout.backingTop, width, _backing.bounds.size.height);
         [self addSubview:_backing];
@@ -1252,6 +1269,7 @@ typedef struct {
     sgDamping = motion.damping;
     sgStagger = motion.stagger;
     sgWholeFade = motion.fade;
+    sg_outline = SGRLyricsOutlineEnabled();
     if (!_compact) {
         _fontSize = look.size;
         _lineGap = look.spacing;
@@ -1830,7 +1848,8 @@ static BOOL lyricsAreForeign(NSArray<SGKaraokeLine *> *lines, NSString *language
     SGRKaraokeLineView *view = _shown[@(index)];
     if (view || !_tops || index < 0 || index >= (NSInteger)_tops.count) return view;
     view = [[SGRKaraokeLineView alloc] initWithLine:_lines[index] width:_builtWidth - 2 * _margin style:_style under:nil
-                                            blurred:_maxBlur > 0 && !_plain sweepsEstimates:_sweepsEstimates];
+                                            blurred:_maxBlur > 0 && !_plain sweepsEstimates:_sweepsEstimates lineIndex:index
+                                          lineCount:_lines.count];
     if (_plain) [view showPlain];
     [view markMeaning:_meanings[@(index)]];
     [_scroll addSubview:view];
