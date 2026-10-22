@@ -21,9 +21,9 @@ def verify(path):
             raise ValueError('IPA must contain exactly one host app')
         base = hosts[0][:-len('Info.plist')]
         host = plistlib.loads(archive.read(hosts[0]))
-        extension_base = base + 'PlugIns/TaurusOpenSpotify.appex/'
+        extension_base = base + 'PlugIns/VexoraSpotifyOpenSpotify.appex/'
         extension = plistlib.loads(archive.read(extension_base + 'Info.plist'))
-        expected = host['CFBundleIdentifier'] + '.TaurusOpenSpotify'
+        expected = host['CFBundleIdentifier'] + '.VexoraSpotifyOpenSpotify'
         if extension['CFBundleIdentifier'] != expected:
             raise ValueError('Safari bundle identifier does not match its host')
         for key in ('CFBundleVersion', 'CFBundleShortVersionString'):
@@ -31,7 +31,7 @@ def verify(path):
                 raise ValueError('Safari version does not match host: ' + key)
         if extension['NSExtension'] != {
             'NSExtensionPointIdentifier': 'com.apple.Safari.web-extension',
-            'NSExtensionPrincipalClass': 'TaurusSafariWebExtensionHandler',
+            'NSExtensionPrincipalClass': 'VexoraSpotifySafariWebExtensionHandler',
         }:
             raise ValueError('Unexpected Safari extension registration')
         binary = archive.read(extension_base + extension['CFBundleExecutable'])
