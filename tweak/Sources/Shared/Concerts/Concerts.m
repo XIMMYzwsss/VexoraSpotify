@@ -5,8 +5,8 @@
 #import "Concerts.h"
 
 static NSString *const kBase = @"https://rest.bandsintown.com/artists/";
-static NSString *const kAppID = @"taurus-spotify-mod";
-static NSString *const kAgent = @"Taurus/" SG_VERSION " (Spotify for iOS, upcoming concerts)";
+static NSString *const kAppID = @"vexoraspotify-mod";
+static NSString *const kAgent = @"VexoraSpotify/" SG_VERSION " (Spotify for iOS, upcoming concerts)";
 static const NSTimeInterval kKept = 6 * 3600, kPastGrace = 6 * 3600, kRefusedWait = 600;
 
 @implementation SGConcert
