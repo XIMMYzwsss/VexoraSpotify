@@ -51,8 +51,11 @@ need cyan "uv tool install 'cyan @ git+https://github.com/asdfzxcvbn/pyzule-rw'"
 # cyan skips -k with only a warning when its environment has no Pillow.
 if [ -n "$ICON" ]; then
   [ -f "$ICON" ] || { echo "no such icon: $ICON" >&2; exit 1; }
-  "$(dirname "$(readlink -f "$(command -v cyan)")")/python" -c 'import PIL' 2>/dev/null \
-    || { echo "cyan has no Pillow for --icon -> uv tool install --force --with pillow 'cyan @ git+https://github.com/asdfzxcvbn/pyzule-rw'" >&2; exit 1; }
+  CYAN_PY="$(dirname "$(readlink -f "$(command -v cyan)" 2>/dev/null || command -v cyan)")/python"
+  if ! "$CYAN_PY" -c 'import PIL' 2>/dev/null && ! python3 -c 'import PIL' 2>/dev/null; then
+    echo "no Pillow for --icon -> pip install pillow, or: uv tool install --force --with pillow 'cyan @ git+https://github.com/asdfzxcvbn/pyzule-rw'" >&2
+    exit 1
+  fi
 fi
 
 APP_DIR="$(unzip -Z1 "$IN" | grep -oE '^Payload/[^/]+\.app/' | sort -u | head -1)"
