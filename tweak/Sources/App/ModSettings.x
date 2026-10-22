@@ -29,30 +29,23 @@ static SGModRow *pageRow(NSString *title, NSString *symbol, UIViewController *(^
     return SGWithSymbol(SGPageRow(title, page), symbol);
 }
 
-// How long the wordmark takes to carry its spectrum all the way round, matching the glow switch's turn.
-static const double kRainbowSpinSeconds = 4;
-
-static UIColor *SGRainbowTextColor(CGFloat width, CGFloat height, double phase) {
+static UIColor *SGVexoraBrandTextColor(CGFloat width, CGFloat height) {
     width = MAX(1, width);
     height = MAX(1, height);
-    NSArray<UIColor *> *stops = SGGlowRainbowColors();
-    NSUInteger count = stops.count;
-    if (count < 2) return UIColor.whiteColor;
-    NSMutableArray *colors = [NSMutableArray arrayWithCapacity:count];
-    for (UIColor *stop in stops) [colors addObject:(id)stop.CGColor];
-    CGFloat *locations = malloc(sizeof(CGFloat) * count);
-    for (NSUInteger i = 0; i < count; i++) locations[i] = (CGFloat)i / (CGFloat)(count - 1);
-    CGFloat offset = (CGFloat)phase * width;
+    NSArray *colors = @[
+        (id)[UIColor colorWithRed:0.38 green:0.58 blue:1 alpha:1].CGColor,
+        (id)[UIColor colorWithRed:0.52 green:0.42 blue:1 alpha:1].CGColor,
+        (id)[UIColor colorWithRed:0.68 green:0.32 blue:0.98 alpha:1].CGColor,
+    ];
+    CGFloat locations[] = {0, 0.55, 1};
     UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(width, height)];
     UIImage *image = [renderer imageWithActions:^(UIGraphicsImageRendererContext *context) {
         CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
         CGGradientRef gradient = CGGradientCreateWithColors(space, (__bridge CFArrayRef)colors, locations);
-        CGContextDrawLinearGradient(context.CGContext, gradient, CGPointMake(-offset, 0), CGPointMake(width - offset, 0), 0);
-        CGContextDrawLinearGradient(context.CGContext, gradient, CGPointMake(width - offset, 0), CGPointMake(2 * width - offset, 0), 0);
+        CGContextDrawLinearGradient(context.CGContext, gradient, CGPointZero, CGPointMake(width, 0), 0);
         CGGradientRelease(gradient);
         CGColorSpaceRelease(space);
     }];
-    free(locations);
     return [UIColor colorWithPatternImage:image];
 }
 
@@ -64,9 +57,7 @@ static UIColor *SGRainbowTextColor(CGFloat width, CGFloat height, double phase) 
     UIView *_masthead;
     UILabel *_mastheadTitle, *_mastheadByline, *_compactTitle;
     BOOL _compactTitleVisible;
-    CADisplayLink *_rainbowLink;
-    CFTimeInterval _rainbowLast;
-    double _rainbowPhase;
+    CGFloat _brandColorWidth;
 }
 
 - (instancetype)initWithSections:(NSArray<SGModSection *> *)sections {
@@ -81,13 +72,12 @@ static UIColor *SGRainbowTextColor(CGFloat width, CGFloat height, double phase) 
     _mastheadTitle = [UILabel new];
     _mastheadTitle.text = @"VexoraSpotify";
     _mastheadTitle.font = [UIFont systemFontOfSize:36 weight:UIFontWeightBold];
-    _mastheadTitle.textAlignment = NSTextAlignmentRight;
-    [_mastheadTitle sizeToFit];
-    _mastheadTitle.textColor = SGRainbowTextColor(_mastheadTitle.bounds.size.width, _mastheadTitle.bounds.size.height, 0);
+    _mastheadTitle.textAlignment = NSTextAlignmentCenter;
     _mastheadByline = [UILabel new];
+    _mastheadByline.text = @"by Ximmy";
     _mastheadByline.font = [UIFont systemFontOfSize:15 weight:UIFontWeightMedium];
     _mastheadByline.textColor = [UIColor colorWithWhite:1 alpha:0.72];
-    _mastheadByline.textAlignment = NSTextAlignmentRight;
+    _mastheadByline.textAlignment = NSTextAlignmentCenter;
     [_masthead addSubview:_mastheadTitle];
     [_masthead addSubview:_mastheadByline];
     self.tableView.tableHeaderView = _masthead;
@@ -95,61 +85,22 @@ static UIColor *SGRainbowTextColor(CGFloat width, CGFloat height, double phase) 
     _compactTitle = [UILabel new];
     _compactTitle.text = @"VexoraSpotify";
     _compactTitle.font = [UIFont systemFontOfSize:17 weight:UIFontWeightSemibold];
-    [_compactTitle sizeToFit];
-    _compactTitle.textColor = SGRainbowTextColor(_compactTitle.bounds.size.width, _compactTitle.bounds.size.height, 0);
+    _compactTitle.textAlignment = NSTextAlignmentCenter;
     _compactTitle.alpha = 0;
     _compactTitle.isAccessibilityElement = YES;
     _compactTitle.accessibilityElementsHidden = YES;
     self.navigationItem.titleView = _compactTitle;
 }
 
-- (void)viewWillAppear:(BOOL)animated {
-    [super viewWillAppear:animated];
-    NSArray<NSString *> *bylines = @[
-        @"by natsha, samj, and arnaupq.", @"by natsha, arnaupq, and samj.",
-        @"by samj, natsha, and arnaupq.", @"by samj, arnaupq, and natsha.",
-        @"by arnaupq, natsha, and samj.", @"by arnaupq, samj, and natsha.",
-    ];
-    _mastheadByline.text = bylines[arc4random_uniform((uint32_t)bylines.count)];
-    [self startRainbow];
-}
-
-- (void)viewDidDisappear:(BOOL)animated {
-    [super viewDidDisappear:animated];
-    [self stopRainbow];
-}
-
-- (void)startRainbow {
-    if (_rainbowLink) return;
-    _rainbowLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(rainbowTick:)];
-    _rainbowLink.preferredFrameRateRange = CAFrameRateRangeMake(24, 30, 30);
-    [_rainbowLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
-}
-
-- (void)stopRainbow {
-    [_rainbowLink invalidate];
-    _rainbowLink = nil;
-    _rainbowLast = 0;
-}
-
-- (void)rainbowTick:(CADisplayLink *)link {
-    CFTimeInterval step = _rainbowLast > 0 ? MIN(link.timestamp - _rainbowLast, 0.1) : 0;
-    _rainbowLast = link.timestamp;
-    _rainbowPhase += step / kRainbowSpinSeconds;
-    _rainbowPhase -= floor(_rainbowPhase);
-    [self applyRainbow];
-}
-
-- (void)applyRainbow {
-    CGSize compact = _compactTitle.bounds.size;
-    if (_compactTitleVisible) {
-        if (compact.width >= 1)
-            _compactTitle.textColor = SGRainbowTextColor(compact.width, compact.height, _rainbowPhase);
-        return;
-    }
-    CGSize title = _mastheadTitle.bounds.size;
-    if (title.width >= 1)
-        _mastheadTitle.textColor = SGRainbowTextColor(title.width, title.height, _rainbowPhase);
+- (void)applyBrandColorsIfNeeded {
+    CGFloat w = _mastheadTitle.bounds.size.width;
+    if (w < 1 || fabs(w - _brandColorWidth) < 0.5) return;
+    _brandColorWidth = w;
+    UIColor *brand = SGVexoraBrandTextColor(w, MAX(_mastheadTitle.bounds.size.height, 36));
+    _mastheadTitle.textColor = brand;
+    CGSize compact = [_compactTitle sizeThatFits:CGSizeMake(CGFLOAT_MAX, 22)];
+    if (compact.width >= 1)
+        _compactTitle.textColor = SGVexoraBrandTextColor(compact.width, compact.height);
 }
 
 - (void)viewDidLayoutSubviews {
@@ -161,9 +112,11 @@ static UIColor *SGRainbowTextColor(CGFloat width, CGFloat height, double phase) 
         if (sizeChanged || self.tableView.tableHeaderView != _masthead) self.tableView.tableHeaderView = _masthead;
         _masthead.backgroundColor = UIColor.blackColor;
         _mastheadByline.textColor = UIColor.whiteColor;
-        CGSize title = _mastheadTitle.bounds.size;
-        _mastheadTitle.frame = CGRectMake(MAX(16, width - 16 - title.width), 24 + (48 - title.height) / 2, title.width, title.height);
-        _mastheadByline.frame = CGRectMake(16, 72, MAX(0, width - 32), 24);
+        CGFloat inner = MAX(0, width - 32);
+        CGSize title = [_mastheadTitle sizeThatFits:CGSizeMake(inner, CGFLOAT_MAX)];
+        _mastheadTitle.frame = CGRectMake(16, 28, inner, title.height);
+        _mastheadByline.frame = CGRectMake(16, CGRectGetMaxY(_mastheadTitle.frame) + 6, inner, 22);
+        [self applyBrandColorsIfNeeded];
     }
     [self updateCompactTitleForScrollView:self.tableView];
 }
@@ -179,6 +132,7 @@ static UIColor *SGRainbowTextColor(CGFloat width, CGFloat height, double phase) 
     _compactTitleVisible = show;
     if (show) {
         _compactTitle.accessibilityElementsHidden = NO;
+        [self applyBrandColorsIfNeeded];
         [UIView animateWithDuration:0.18 animations:^{ self->_compactTitle.alpha = 1; }];
     } else {
         _compactTitle.accessibilityElementsHidden = YES;
