@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Open in Spotify \u00b7 Taurus",
+  "name": "Open in Spotify \u00b7 VexoraSpotify",
   "description": "Open Spotify links in the installed Spotify app, with manual fallback and repeat-prompt protection.",
   "version": "2.0.0",
   "permissions": [
