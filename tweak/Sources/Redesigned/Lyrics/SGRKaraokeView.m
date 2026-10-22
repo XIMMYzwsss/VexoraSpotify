@@ -1283,6 +1283,7 @@ typedef struct {
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(playerTransitionChanged:) name:SGPlayerTransitionEndedNotification object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(restyle) name:SGRLyricsTextDidChangeNotification object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(lookChanged) name:SGRLyricsLookDidChangeNotification object:nil];
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(coverChanged) name:SGRNowPlayingArtworkDidChangeNotification object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(rebuild) name:SGLyricsRomanisedDidChangeNotification object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(translationsChanged) name:SGLyricsTranslationsDidChangeNotification object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(meaningMarkersChanged) name:SGLyricsMeaningMarkersDidChangeNotification object:nil];
@@ -1329,6 +1330,11 @@ typedef struct {
         _blurPerLine = kBlurPerLine * look.blur;
         _maxBlur = kMaxBlur * look.blur;
     }
+}
+
+- (void)coverChanged {
+    if (SGRLyricsColorModeNow() == SGRLyricsColorModeCover) [self lookChanged];
+    else [self setNeedsLayout];
 }
 
 - (void)lookChanged {
@@ -1494,40 +1500,76 @@ typedef struct {
 
 - (void)layoutFullscreenBackdrop {
     static const NSInteger kTag = 88005;
-    BOOL cover = SGRLyricsFullscreenBackgroundNow() == SGRLyricsFullscreenBackgroundCover;
+    static char kBlurKey;
+    SGRLyricsFullscreenBackground mode = SGRLyricsFullscreenBackgroundNow();
     UIView *plate = [self viewWithTag:kTag];
     if (!plate) {
         plate = [UIView new];
         plate.tag = kTag;
         plate.userInteractionEnabled = NO;
-        plate.backgroundColor = UIColor.blackColor;
-        plate.opaque = YES;
+        plate.clipsToBounds = YES;
         [self insertSubview:plate atIndex:0];
     }
     plate.frame = self.bounds;
     plate.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     [self sendSubviewToBack:plate];
-    self.backgroundColor = UIColor.blackColor;
-    self.opaque = YES;
-    if (!cover) {
-        plate.layer.sublayers = nil;
+    UIImageView *artView = nil;
+    UIVisualEffectView *blurView = nil;
+    for (UIView *sub in plate.subviews) {
+        if ([sub isKindOfClass:UIImageView.class]) artView = (UIImageView *)sub;
+        if ([sub isKindOfClass:UIVisualEffectView.class]) blurView = (UIVisualEffectView *)sub;
+    }
+    if (mode == SGRLyricsFullscreenBackgroundSolid) {
+        artView.hidden = blurView.hidden = YES;
+        for (CALayer *sub in [plate.layer.sublayers copy]) if ([sub isKindOfClass:CAGradientLayer.class]) [sub removeFromSuperlayer];
+        UIColor *color = SGRLyricsSolidBackgroundColor();
+        plate.backgroundColor = color;
+        plate.opaque = YES;
+        self.backgroundColor = color;
+        self.opaque = YES;
         return;
     }
-    if (plate.layer.sublayers.count == 2 && CGRectEqualToRect(plate.layer.sublayers.firstObject.frame, plate.bounds)) return;
-    plate.layer.sublayers = nil;
-    UIColor *tint = [UIColor colorWithRed:30 / 255.0 green:215 / 255.0 blue:96 / 255.0 alpha:1];
-    UIImage *art = SGRNowPlayingArtwork(NULL, NULL);
-    if (art.CGImage) {
-        uint8_t px[4] = {30, 215, 96, 255};
-        CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
-        CGContextRef ctx = CGBitmapContextCreate(px, 1, 1, 8, 4, space, (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
-        CGColorSpaceRelease(space);
-        if (ctx) {
-            CGContextDrawImage(ctx, CGRectMake(0, 0, 1, 1), art.CGImage);
-            CGContextRelease(ctx);
-            tint = [UIColor colorWithRed:px[0] / 255.0 green:px[1] / 255.0 blue:px[2] / 255.0 alpha:1];
+    if (mode == SGRLyricsFullscreenBackgroundOriginal) {
+        for (CALayer *sub in [plate.layer.sublayers copy]) if ([sub isKindOfClass:CAGradientLayer.class]) [sub removeFromSuperlayer];
+        if (!artView) {
+            artView = [UIImageView new];
+            artView.contentMode = UIViewContentModeScaleAspectFill;
+            [plate addSubview:artView];
         }
+        if (!blurView) {
+            blurView = [[UIVisualEffectView alloc] initWithEffect:nil];
+            blurView.userInteractionEnabled = NO;
+            [plate addSubview:blurView];
+        }
+        artView.hidden = blurView.hidden = NO;
+        artView.frame = blurView.frame = plate.bounds;
+        artView.autoresizingMask = blurView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        UIImage *art = SGRNowPlayingArtwork(NULL, NULL);
+        if (art) artView.image = art;
+        plate.backgroundColor = UIColor.blackColor;
+        self.backgroundColor = UIColor.clearColor;
+        self.opaque = NO;
+        UIViewPropertyAnimator *anim = objc_getAssociatedObject(blurView, &kBlurKey);
+        if (!anim) {
+            UIVisualEffectView *effectView = blurView;
+            anim = [[UIViewPropertyAnimator alloc] initWithDuration:1 curve:UIViewAnimationCurveLinear animations:^{
+                effectView.effect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleDark];
+            }];
+            anim.pausesOnCompletion = YES;
+            [anim startAnimation];
+            [anim pauseAnimation];
+            objc_setAssociatedObject(blurView, &kBlurKey, anim, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        anim.fractionComplete = SGRLyricsOriginalBlur() / 100.0;
+        return;
     }
+    artView.hidden = blurView.hidden = YES;
+    plate.backgroundColor = UIColor.blackColor;
+    plate.opaque = YES;
+    self.backgroundColor = UIColor.blackColor;
+    self.opaque = YES;
+    for (CALayer *sub in [plate.layer.sublayers copy]) if ([sub isKindOfClass:CAGradientLayer.class]) [sub removeFromSuperlayer];
+    UIColor *tint = SGRLyricsCoverColor();
     for (int i = 0; i < 2; i++) {
         CAGradientLayer *rad = [CAGradientLayer layer];
         rad.type = kCAGradientLayerRadial;

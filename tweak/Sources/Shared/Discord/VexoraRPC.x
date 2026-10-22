@@ -42,7 +42,7 @@ static NSString *savedToken(void) {
     NSURLSession *_session;
     NSURLSessionWebSocketTask *_task;
     NSTimer *_heartbeat, *_tick;
-    NSString *_token, *_signature, *_track;
+    NSString *_token, *_signature, *_track, *_cover;
     NSInteger _seq;
     BOOL _open, _identified, _dirty, _force;
     NSTimeInterval _lastSend;
@@ -80,22 +80,77 @@ static NSString *savedToken(void) {
     return clip(SGKaraokeLineText(lines[(NSUInteger)index]), 120);
 }
 
+- (NSString *)artworkURL {
+    NSDictionary *metadata = SGPlayerState().track.metadata;
+    if (![metadata isKindOfClass:NSDictionary.class]) return @"";
+    for (NSString *field in @[@"image_xlarge_url", @"image_large_url", @"image_url"]) {
+        NSString *value = metadata[field];
+        if (![value isKindOfClass:NSString.class] || !value.length) continue;
+        if ([value hasPrefix:@"https://"]) return value;
+        if ([value hasPrefix:@"spotify:image:"]) return [@"https://i.scdn.co/image/" stringByAppendingString:[value substringFromIndex:14]];
+    }
+    return @"";
+}
+
+- (NSString *)discordImage:(NSString *)https {
+    if (![https hasPrefix:@"https://"]) return @"";
+    return [@"mp:external/https/" stringByAppendingString:[https substringFromIndex:8]];
+}
+
+- (void)lookupCover {
+    SPTPlayerState *state = SGPlayerState();
+    NSString *title = clip(state.track.trackTitle, 120);
+    NSString *artist = clip(state.track.artistName, 120);
+    if (!title.length) return;
+    NSString *query = [NSString stringWithFormat:@"artist:\"%@\" track:\"%@\"", artist, title];
+    NSString *escaped = [query stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
+    NSURL *url = [NSURL URLWithString:[@"https://api.deezer.com/search?limit=1&q=" stringByAppendingString:escaped ?: @""]];
+    NSString *key = [_track copy];
+    __weak SGVexoraDiscord *weak = self;
+    [[NSURLSession.sharedSession dataTaskWithURL:url completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        (void)response; (void)error;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            SGVexoraDiscord *self_ = weak;
+            if (!self_ || ![self_->_track isEqualToString:key] || !data.length) return;
+            NSDictionary *obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+            NSArray *rows = [obj isKindOfClass:NSDictionary.class] ? obj[@"data"] : nil;
+            NSDictionary *row = [rows isKindOfClass:NSArray.class] ? rows.firstObject : nil;
+            NSString *cover = [row[@"album"] isKindOfClass:NSDictionary.class] ? row[@"album"][@"cover_xl"] : nil;
+            if (![cover isKindOfClass:NSString.class] || ![cover hasPrefix:@"https://"]) return;
+            self_->_cover = cover;
+            self_->_force = YES;
+            [self_ pushPresence];
+        });
+    }] resume];
+}
+
 - (NSDictionary *)presenceBody {
     SPTPlayerState *state = SGPlayerState();
-    BOOL live = _token.length && state.track.trackTitle.length && !state.isPaused;
+    BOOL hasTrack = state.track.trackTitle.length > 0;
+    BOOL playing = hasTrack && !state.isPaused;
     NSMutableDictionary *activity = [@{@"name": @"Vexora", @"type": @2, @"application_id": kDiscordClientId} mutableCopy];
-    activity[@"details"] = live ? clip(state.track.trackTitle, 120) : @"Idle";
+    activity[@"details"] = hasTrack ? clip(state.track.trackTitle, 120) : @"Idle";
     NSString *artist = clip(state.track.artistName, 120);
-    NSString *lyric = live ? [self lyricNow] : @"";
-    if (live && lyric.length) activity[@"state"] = clip([NSString stringWithFormat:@"%@ · %@", artist, lyric], 120);
-    else if (live && artist.length) activity[@"state"] = artist;
-    if (live && state.duration > 0) {
-        long long now = (long long)[NSDate date].timeIntervalSince1970;
-        long long pos = (long long)MAX(0, state.position);
-        long long dur = (long long)state.duration;
-        if (dur <= pos) dur = pos + 1;
-        activity[@"timestamps"] = @{@"start": @(now - pos), @"end": @(now - pos + dur)};
+    NSString *lyric = hasTrack ? [self lyricNow] : @"";
+    NSString *album = [state.track.metadata[@"album_title"] isKindOfClass:NSString.class] ? state.track.metadata[@"album_title"] : @"";
+    if (hasTrack && lyric.length) activity[@"state"] = clip([NSString stringWithFormat:@"%@ · %@", artist, lyric], 120);
+    else if (hasTrack && artist.length) activity[@"state"] = artist;
+    if (hasTrack) {
+        NSInteger posMs = MAX(0, SGKaraokePositionMs());
+        long long nowMs = (long long)([NSDate date].timeIntervalSince1970 * 1000);
+        long long durMs = (long long)llround(MAX(0, state.duration) * 1000);
+        if (durMs > posMs) activity[@"timestamps"] = @{@"start": @(nowMs - posMs), @"end": @(nowMs - posMs + durMs)};
+        else activity[@"timestamps"] = @{@"start": @(nowMs - posMs)};
+        NSString *image = _cover.length ? _cover : [self artworkURL];
+        NSString *external = [self discordImage:image];
+        if (external.length) {
+            NSMutableDictionary *assets = [@{@"large_image": external} mutableCopy];
+            if (album.length) assets[@"large_text"] = clip(album, 120);
+            else if (lyric.length) assets[@"large_text"] = lyric;
+            activity[@"assets"] = assets;
+        }
     }
+    (void)playing;
     return @{@"since": NSNull.null, @"activities": @[activity], @"status": @"online", @"afk": @NO};
 }
 
@@ -173,8 +228,11 @@ static NSString *savedToken(void) {
     NSString *track = SGKaraokePlayingTrack() ?: @"";
     if (![track isEqualToString:_track ?: @""]) {
         _track = track;
+        _cover = @"";
         _force = YES;
+        [self lookupCover];
     }
+    if (SGPlayerState().isPaused) _force = YES;
     _dirty = YES;
     [self pushPresence];
 }

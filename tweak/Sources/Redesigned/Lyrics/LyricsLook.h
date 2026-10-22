@@ -19,6 +19,9 @@ typedef struct {
 
 #define SGRKeyLyricsOutline @"spotifyglass.redesign.lyricsOutline"
 #define SGRKeyLyricsColor @"spotifyglass.redesign.lyricsColor"
+#define SGRKeyLyricsColorMode @"spotifyglass.redesign.lyricsColorMode"
+#define SGRKeyLyricsSolidColor @"spotifyglass.redesign.lyricsSolidColor"
+#define SGRKeyLyricsOriginalBlur @"spotifyglass.redesign.lyricsOriginalBlur"
 #define SGRKeyLyricsFullscreenBackground @"spotifyglass.redesign.lyricsFullscreenBackground"
 
 #define SGRLyricsFontMojangles @"Mojangles"
@@ -31,19 +34,35 @@ void SGRSetLyricsLook(SGRLyricsLook look, id changer);
 
 BOOL SGRLyricsOutlineEnabled(void);
 
+typedef NS_ENUM(NSInteger, SGRLyricsColorMode) {
+    SGRLyricsColorModeCover = 0,
+    SGRLyricsColorModeCustom = 1,
+};
+SGRLyricsColorMode SGRLyricsColorModeNow(void);
+void SGRSetLyricsColorMode(SGRLyricsColorMode mode, id changer);
+NSArray<NSString *> *SGRLyricsColorModeNames(void);
+
 UIColor *SGRLyricsTextColor(void);
 NSString *SGRLyricsTextColorLabel(void);
 void SGRSetLyricsTextColor(UIColor *color, id changer);
 void SGRPickLyricsTextColor(void);
 UIColor *SGRLyricsColorForLineAtIndex(NSUInteger lineIndex, NSUInteger lineCount);
+UIColor *SGRLyricsCoverColor(void);
 
 typedef NS_ENUM(NSInteger, SGRLyricsFullscreenBackground) {
-    SGRLyricsFullscreenBackgroundBlack = 0,
+    SGRLyricsFullscreenBackgroundSolid = 0,
     SGRLyricsFullscreenBackgroundCover = 1,
+    SGRLyricsFullscreenBackgroundOriginal = 2,
 };
 SGRLyricsFullscreenBackground SGRLyricsFullscreenBackgroundNow(void);
 void SGRSetLyricsFullscreenBackground(SGRLyricsFullscreenBackground mode, id changer);
 NSArray<NSString *> *SGRLyricsFullscreenBackgroundNames(void);
+UIColor *SGRLyricsSolidBackgroundColor(void);
+NSString *SGRLyricsSolidBackgroundLabel(void);
+void SGRSetLyricsSolidBackgroundColor(UIColor *color, id changer);
+void SGRPickLyricsSolidBackgroundColor(void);
+NSInteger SGRLyricsOriginalBlur(void);
+void SGRSetLyricsOriginalBlur(NSInteger percent, id changer);
 
 BOOL SGRegisterMojanglesFont(void);
 

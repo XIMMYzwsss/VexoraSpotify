@@ -3,6 +3,7 @@
 #import "Core/SGCore.h"
 #import "Settings/SGPageStyle.h"
 #import "Shared/Fonts/Fonts.h"
+#import "Redesigned/Kit/SGRBridges.h"
 #import <CoreText/CoreText.h>
 
 NSNotificationName const SGRLyricsLookDidChangeNotification = @"spotifyglass.redesign.lyricsLookDidChange";
@@ -145,7 +146,47 @@ static NSInteger lyricsTextRGB(void) {
     return kDefaultLyricsRGB;
 }
 
+static UIColor *sampledCover(UIImage *image) {
+    UIColor *fallback = UIColor.whiteColor;
+    if (!image.CGImage) return fallback;
+    uint8_t px[4] = {255, 255, 255, 255};
+    CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+    CGContextRef ctx = CGBitmapContextCreate(px, 1, 1, 8, 4, space, (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
+    CGColorSpaceRelease(space);
+    if (!ctx) return fallback;
+    CGContextDrawImage(ctx, CGRectMake(0, 0, 1, 1), image.CGImage);
+    CGContextRelease(ctx);
+    CGFloat r = px[0] / 255.0, g = px[1] / 255.0, b = px[2] / 255.0;
+    CGFloat luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    if (luma < 0.35) {
+        CGFloat lift = (0.35 - luma) / 0.35;
+        r += (1 - r) * lift;
+        g += (1 - g) * lift;
+        b += (1 - b) * lift;
+    }
+    return [UIColor colorWithRed:r green:g blue:b alpha:1];
+}
+
+UIColor *SGRLyricsCoverColor(void) {
+    return sampledCover(SGRNowPlayingArtwork(NULL, NULL));
+}
+
+NSArray<NSString *> *SGRLyricsColorModeNames(void) {
+    return @[@"Follow cover", @"Custom"];
+}
+
+SGRLyricsColorMode SGRLyricsColorModeNow(void) {
+    return SGInt(SGRKeyLyricsColorMode, SGRLyricsColorModeCover) == SGRLyricsColorModeCustom
+        ? SGRLyricsColorModeCustom : SGRLyricsColorModeCover;
+}
+
+void SGRSetLyricsColorMode(SGRLyricsColorMode mode, id changer) {
+    SGSetInt(SGRKeyLyricsColorMode, mode == SGRLyricsColorModeCustom ? 1 : 0);
+    [NSNotificationCenter.defaultCenter postNotificationName:SGRLyricsLookDidChangeNotification object:changer];
+}
+
 UIColor *SGRLyricsTextColor(void) {
+    if (SGRLyricsColorModeNow() == SGRLyricsColorModeCover) return SGRLyricsCoverColor();
     return colorFromRGB(lyricsTextRGB());
 }
 
@@ -186,16 +227,67 @@ void SGRPickLyricsTextColor(void) {
 }
 
 NSArray<NSString *> *SGRLyricsFullscreenBackgroundNames(void) {
-    return @[@"Solid black", @"Cover glow"];
+    return @[@"Solid color", @"Cover glow", @"Original"];
 }
 
 SGRLyricsFullscreenBackground SGRLyricsFullscreenBackgroundNow(void) {
-    NSInteger mode = SGInt(SGRKeyLyricsFullscreenBackground, SGRLyricsFullscreenBackgroundBlack);
-    return mode == SGRLyricsFullscreenBackgroundCover ? SGRLyricsFullscreenBackgroundCover : SGRLyricsFullscreenBackgroundBlack;
+    NSInteger mode = SGInt(SGRKeyLyricsFullscreenBackground, SGRLyricsFullscreenBackgroundSolid);
+    if (mode == SGRLyricsFullscreenBackgroundCover) return SGRLyricsFullscreenBackgroundCover;
+    if (mode == SGRLyricsFullscreenBackgroundOriginal) return SGRLyricsFullscreenBackgroundOriginal;
+    return SGRLyricsFullscreenBackgroundSolid;
 }
 
 void SGRSetLyricsFullscreenBackground(SGRLyricsFullscreenBackground mode, id changer) {
-    SGSetInt(SGRKeyLyricsFullscreenBackground, mode == SGRLyricsFullscreenBackgroundCover ? 1 : 0);
+    NSInteger stored = 0;
+    if (mode == SGRLyricsFullscreenBackgroundCover) stored = 1;
+    else if (mode == SGRLyricsFullscreenBackgroundOriginal) stored = 2;
+    SGSetInt(SGRKeyLyricsFullscreenBackground, stored);
+    [NSNotificationCenter.defaultCenter postNotificationName:SGRLyricsLookDidChangeNotification object:changer];
+}
+
+UIColor *SGRLyricsSolidBackgroundColor(void) {
+    return colorFromRGB(storedRGB(SGRKeyLyricsSolidColor) == kDefaultLyricsRGB && [NSUserDefaults.standardUserDefaults objectForKey:SGRKeyLyricsSolidColor] == nil
+        ? 0x000000 : storedRGB(SGRKeyLyricsSolidColor));
+}
+
+NSString *SGRLyricsSolidBackgroundLabel(void) {
+    NSInteger rgb = [NSUserDefaults.standardUserDefaults objectForKey:SGRKeyLyricsSolidColor] == nil ? 0x000000 : storedRGB(SGRKeyLyricsSolidColor);
+    return [NSString stringWithFormat:@"#%06lX", (long)rgb];
+}
+
+void SGRSetLyricsSolidBackgroundColor(UIColor *color, id changer) {
+    if (!color) return;
+    SGSetInt(SGRKeyLyricsSolidColor, rgbFromColor(color));
+    [NSNotificationCenter.defaultCenter postNotificationName:SGRLyricsLookDidChangeNotification object:changer];
+}
+
+@interface SGRLyricsSolidPicker : NSObject <UIColorPickerViewControllerDelegate>
+@end
+
+@implementation SGRLyricsSolidPicker
+- (void)colorPickerViewControllerDidFinish:(UIColorPickerViewController *)picker {
+    SGRSetLyricsSolidBackgroundColor(picker.selectedColor, nil);
+}
+@end
+
+void SGRPickLyricsSolidBackgroundColor(void) {
+    static SGRLyricsSolidPicker *delegate;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ delegate = [SGRLyricsSolidPicker new]; });
+    UIColorPickerViewController *picker = [UIColorPickerViewController new];
+    picker.supportsAlpha = NO;
+    picker.selectedColor = SGRLyricsSolidBackgroundColor();
+    picker.delegate = delegate;
+    [SGTopController() presentViewController:picker animated:YES completion:nil];
+}
+
+NSInteger SGRLyricsOriginalBlur(void) {
+    NSInteger blur = SGInt(SGRKeyLyricsOriginalBlur, 60);
+    return MAX(0, MIN(100, blur));
+}
+
+void SGRSetLyricsOriginalBlur(NSInteger percent, id changer) {
+    SGSetInt(SGRKeyLyricsOriginalBlur, MAX(0, MIN(100, percent)));
     [NSNotificationCenter.defaultCenter postNotificationName:SGRLyricsLookDidChangeNotification object:changer];
 }
 

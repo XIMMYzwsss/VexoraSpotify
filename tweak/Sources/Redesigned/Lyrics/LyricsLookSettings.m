@@ -102,18 +102,45 @@ static void presentStyleSheet(UIViewController *owner) {
         [NSNotificationCenter.defaultCenter postNotificationName:SGRLyricsLookDidChangeNotification object:sheetPage];
     };
     rows = [rows arrayByAddingObject:outline];
-    rows = [rows arrayByAddingObject:SGStatActionRow(@"Lyrics color", @"Active sung line", ^NSString *{
+    NSArray<NSString *> *colorModes = SGRLyricsColorModeNames();
+    SGModRow *colorMode = SGMenuRow(@"Lyrics color", colorModes, ^NSString *{
+        return colorModes[(NSUInteger)SGRLyricsColorModeNow()];
+    }, ^(NSInteger index) {
+        SGRSetLyricsColorMode((SGRLyricsColorMode)index, nil);
+        [(SGModPage *)sheetPage refreshVisibility];
+    });
+    rows = [rows arrayByAddingObject:colorMode];
+    SGModRow *customColor = SGStatActionRow(@"Custom color", @"Sung line", ^NSString *{
         return SGRLyricsTextColorLabel();
     }, ^{
         SGRPickLyricsTextColor();
-    })];
+    });
+    customColor.visible = ^BOOL { return SGRLyricsColorModeNow() == SGRLyricsColorModeCustom; };
+    rows = [rows arrayByAddingObject:customColor];
     NSArray<NSString *> *backgrounds = SGRLyricsFullscreenBackgroundNames();
     SGModRow *fullscreenBg = SGMenuRow(@"Fullscreen background", backgrounds, ^NSString *{
         return backgrounds[(NSUInteger)SGRLyricsFullscreenBackgroundNow()];
     }, ^(NSInteger index) {
-        SGRSetLyricsFullscreenBackground((SGRLyricsFullscreenBackground)index, sheetPage);
+        SGRSetLyricsFullscreenBackground((SGRLyricsFullscreenBackground)index, nil);
+        [(SGModPage *)sheetPage refreshVisibility];
     });
     rows = [rows arrayByAddingObject:fullscreenBg];
+    SGModRow *solidColor = SGStatActionRow(@"Background color", @"Solid fullscreen background", ^NSString *{
+        return SGRLyricsSolidBackgroundLabel();
+    }, ^{
+        SGRPickLyricsSolidBackgroundColor();
+    });
+    solidColor.visible = ^BOOL { return SGRLyricsFullscreenBackgroundNow() == SGRLyricsFullscreenBackgroundSolid; };
+    rows = [rows arrayByAddingObject:solidColor];
+    SGModRow *originalBlur = SGSliderRow(@"Background blur", @"How soft the original cover background is", 0, 100, 5, ^double {
+        return SGRLyricsOriginalBlur();
+    }, ^(double value) {
+        SGRSetLyricsOriginalBlur((NSInteger)value, nil);
+    }, ^NSString *(double value) {
+        return [NSString stringWithFormat:@"%.0f%%", value];
+    });
+    originalBlur.visible = ^BOOL { return SGRLyricsFullscreenBackgroundNow() == SGRLyricsFullscreenBackgroundOriginal; };
+    rows = [rows arrayByAddingObject:originalBlur];
     NSArray<NSString *> *fonts = SGRLyricsFontChoices();
     SGModRow *font = SGMenuRow(@"Font", fonts, ^NSString *{ return SGRLyricsFontChoice(); }, ^(NSInteger index) {
         SGRSetLyricsFontChoice(fonts[(NSUInteger)index], sheetPage);
@@ -134,7 +161,7 @@ static void presentStyleSheet(UIViewController *owner) {
     });
     NSString *footer = @"Blur is how much the lines away from the one sung soften. Glow and Wave are how strongly a held "
                        @"word glows and its letters rise. 100% is Apple Music's. Outline applies to the sung line only. "
-                       @"Fullscreen background: Solid black fills the screen; Cover glow adds Vexora-style accent radials on black. Mojangles appears "
+                       @"Lyrics color follows the cover unless Custom is chosen. Fullscreen background: Solid color, Cover glow, or Original (the blurred cover, with its own blur). Mojangles appears "
                        @"in Font when the Vexora preset is selected.";
     SGRLyricsStyleSheet *page = [[SGRLyricsStyleSheet alloc] initWithTitle:@"Lyrics Style" intro:nil
                                                                  sections:@[SGNotedSection(nil, rows, footer),
