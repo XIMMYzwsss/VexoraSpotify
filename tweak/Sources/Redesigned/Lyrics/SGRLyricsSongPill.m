@@ -198,7 +198,7 @@ static const NSInteger kMostResults = 6;
     NSURLComponents *url = [NSURLComponents componentsWithString:@"https://lrclib.net/api/search"];
     url.queryItems = @[[NSURLQueryItem queryItemWithName:@"q" value:query]];
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url.URL];
-    [request setValue:@"Taurus " @SG_VERSION forHTTPHeaderField:@"User-Agent"];
+    [request setValue:@"VexoraSpotify " @SG_VERSION forHTTPHeaderField:@"User-Agent"];
     request.timeoutInterval = 12;
     [_task cancel];
     NSUInteger asked = ++_asked;
