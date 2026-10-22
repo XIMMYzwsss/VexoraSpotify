@@ -1,13 +1,13 @@
 {
   "apps": [
     {
-      "name": "taurus",
+      "name": "VexoraSpotify",
       "bundleIdentifier": "com.spotify.client",
-      "version": "0.60.1",
-      "versionDate": "2026-10-08T22:17:09Z",
-      "size": 132877139,
-      "downloadURL": "https://github.com/samj-exe/taurus/releases/download/v0.60.1/Taurus-0.60.1.ipa",
-      "localizedDescription": "taurus: the free, open-sourced alternative to chroma.pw with built-in spotify premium",
+      "version": "0.60.3",
+      "versionDate": "2026-10-22T12:00:00Z",
+      "size": 0,
+      "downloadURL": "https://github.com/XIMMYzwsss/VexoraSpotify/releases/download/v0.60.3/VexoraSpotify-0.60.3.ipa",
+      "localizedDescription": "VexoraSpotify: custom fork with built-in Spotify Premium",
       "iconURL": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/74/Spotify_App_Logo.svg/960px-Spotify_App_Logo.svg.png"
     }
   ]
