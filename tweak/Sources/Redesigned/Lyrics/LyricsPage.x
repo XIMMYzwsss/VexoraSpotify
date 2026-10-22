@@ -50,7 +50,8 @@ static NSArray<UIColor *> *colorsFromArtwork(UIImage *image) {
     uint8_t *data = calloc(w * h, 4);
     if (!data) return @[fallback, fallback];
     CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
-    CGContextRef ctx = CGBitmapContextCreate(data, w, h, 8, w * 4, space, kCGImageAlphaPremultipliedLast);
+    CGContextRef ctx = CGBitmapContextCreate(data, w, h, 8, w * 4, space,
+        (CGBitmapInfo)(kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big));
     CGColorSpaceRelease(space);
     if (!ctx) {
         free(data);
@@ -146,11 +147,6 @@ static void layoutLyricsBackdrop(UIView *page) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{ SGLog(@"lyrics page paints itself %@ through UIView", color); });
     %orig(nil);
-}
-
-- (void)didMoveToWindow {
-    %orig;
-    if (self.window) [(UIView *)self setNeedsLayout];
 }
 
 - (void)layoutSubviews {
