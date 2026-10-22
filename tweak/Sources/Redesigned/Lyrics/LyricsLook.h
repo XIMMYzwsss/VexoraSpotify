@@ -49,6 +49,8 @@ void SGRPickLyricsTextColor(void);
 UIColor *SGRLyricsColorForLineAtIndex(NSUInteger lineIndex, NSUInteger lineCount);
 UIColor *SGRLyricsCoverColor(void);
 NSArray<UIColor *> *SGRLyricsCoverColors(void);
+// Posted when the two cover colors are ready for the track now playing. Glow uses this, not a lyrics rebuild.
+extern NSNotificationName const SGRLyricsCoverColorsDidChangeNotification;
 
 typedef NS_ENUM(NSInteger, SGRLyricsFullscreenBackground) {
     SGRLyricsFullscreenBackgroundSolid = 0,

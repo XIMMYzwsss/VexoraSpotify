@@ -42,7 +42,7 @@ static NSString *savedToken(void) {
     NSURLSession *_session;
     NSURLSessionWebSocketTask *_task;
     NSTimer *_heartbeat, *_tick;
-    NSString *_token, *_signature, *_track, *_cover;
+    NSString *_token, *_signature, *_track, *_cover, *_coverURL;
     long long _stampStart, _stampEnd;
     NSInteger _seq;
     BOOL _open, _identified, _dirty, _force;
@@ -59,7 +59,7 @@ static NSString *savedToken(void) {
 - (void)start {
     _token = savedToken();
     SGAddPlayerStateObserver(self);
-    _tick = [NSTimer timerWithTimeInterval:3 target:self selector:@selector(refresh) userInfo:nil repeats:YES];
+    _tick = [NSTimer timerWithTimeInterval:0.25 target:self selector:@selector(refresh) userInfo:nil repeats:YES];
     [NSRunLoop.mainRunLoop addTimer:_tick forMode:NSRunLoopCommonModes];
     if (_token.length) [self connect];
     [self refresh];
@@ -67,17 +67,23 @@ static NSString *savedToken(void) {
 
 - (void)playerStateDidChange:(SPTPlayerState *)state {
     (void)state;
-    _force = YES;
     [self refresh];
 }
 
+// The desktop app shows the latest line whose start has passed, 400 ms early, and leaves the
+// tooltip empty before the first vocal and on a line with no words.
 - (NSString *)lyricNow {
     NSString *track = SGKaraokePlayingTrack();
     NSArray<SGKaraokeLine *> *lines = SGKaraokeLinesForTrack(track);
     NSInteger ms = SGKaraokePositionMs();
     if (!lines.count || ms < 0) return @"";
-    NSInteger index = SGKaraokeLeadLine(lines, ms);
-    if (index < 0 || (NSUInteger)index >= lines.count) return @"";
+    ms += 400;
+    NSInteger index = -1;
+    for (NSInteger i = 0; i < (NSInteger)lines.count; i++) {
+        if (lines[(NSUInteger)i].start <= ms) index = i;
+        else break;
+    }
+    if (index < 0) return @"";
     return clip(SGKaraokeLineText(lines[(NSUInteger)index]), 120);
 }
 
@@ -102,6 +108,38 @@ static NSString *savedToken(void) {
     _stampEnd = durMs > posMs ? _stampStart + durMs : 0;
 }
 
+- (void)registerCover:(NSString *)https {
+    if (![https hasPrefix:@"https://"] || !_token.length) return;
+    if ([_coverURL isEqualToString:https] && [_cover hasPrefix:@"mp:"]) return;
+    _coverURL = https;
+    NSString *wanted = [_track copy];
+    NSURL *endpoint = [NSURL URLWithString:[NSString stringWithFormat:@"https://discord.com/api/v10/applications/%@/external-assets", kDiscordClientId]];
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:endpoint];
+    request.HTTPMethod = @"POST";
+    [request setValue:_token forHTTPHeaderField:@"Authorization"];
+    [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+    request.HTTPBody = [NSJSONSerialization dataWithJSONObject:@{@"urls": @[https]} options:0 error:nil];
+    __weak SGVexoraDiscord *weak = self;
+    [[NSURLSession.sharedSession dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        (void)error;
+        NSInteger status = [response isKindOfClass:NSHTTPURLResponse.class] ? ((NSHTTPURLResponse *)response).statusCode : 0;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            SGVexoraDiscord *self_ = weak;
+            if (!self_ || ![self_->_track isEqualToString:wanted]) return;
+            id obj = data.length ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+            NSDictionary *row = [obj isKindOfClass:NSArray.class] ? [(NSArray *)obj firstObject] : nil;
+            NSString *path = [row isKindOfClass:NSDictionary.class] ? row[@"external_asset_path"] : nil;
+            if (![path isKindOfClass:NSString.class] || ![path hasPrefix:@"mp:"]) {
+                SGLog(@"discord cover not accepted (%ld) for %@", (long)status, https.lastPathComponent);
+                return;
+            }
+            self_->_cover = path;
+            self_->_force = YES;
+            [self_ pushPresence];
+        });
+    }] resume];
+}
+
 - (void)lookupCover {
     SPTPlayerState *state = SGPlayerState();
     NSString *title = clip(state.track.trackTitle, 120);
@@ -116,16 +154,13 @@ static NSString *savedToken(void) {
         (void)response; (void)error;
         dispatch_async(dispatch_get_main_queue(), ^{
             SGVexoraDiscord *self_ = weak;
-            if (!self_ || ![self_->_track isEqualToString:key] || !data.length) return;
-            NSDictionary *obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+            if (!self_ || ![self_->_track isEqualToString:key]) return;
+            NSDictionary *obj = data.length ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
             NSArray *rows = [obj isKindOfClass:NSDictionary.class] ? obj[@"data"] : nil;
             NSDictionary *row = [rows isKindOfClass:NSArray.class] ? rows.firstObject : nil;
             NSString *cover = [row[@"album"] isKindOfClass:NSDictionary.class] ? row[@"album"][@"cover_xl"] : nil;
             if (![cover isKindOfClass:NSString.class] || ![cover hasPrefix:@"https://"]) cover = [self_ artworkURL];
-            if (![cover hasPrefix:@"https://"]) return;
-            self_->_cover = cover;
-            self_->_force = YES;
-            [self_ pushPresence];
+            [self_ registerCover:cover];
         });
     }] resume];
 }
@@ -143,9 +178,8 @@ static NSString *savedToken(void) {
         if (_stampEnd > _stampStart) activity[@"timestamps"] = @{@"start": @(_stampStart), @"end": @(_stampEnd)};
         else activity[@"timestamps"] = @{@"start": @(_stampStart)};
     }
-    NSString *image = _cover.length ? _cover : [self artworkURL];
-    if (hasTrack && [image hasPrefix:@"https://"]) {
-        NSMutableDictionary *assets = [@{@"large_image": image} mutableCopy];
+    if (hasTrack && [_cover hasPrefix:@"mp:"]) {
+        NSMutableDictionary *assets = [@{@"large_image": _cover} mutableCopy];
         if (lyric.length) assets[@"large_text"] = lyric;
         activity[@"assets"] = assets;
     }
@@ -228,6 +262,7 @@ static NSString *savedToken(void) {
     if (![track isEqualToString:_track ?: @""]) {
         _track = track;
         _cover = @"";
+        _coverURL = @"";
         _stampStart = 0;
         [self rememberClock];
         _force = YES;
@@ -250,7 +285,7 @@ static NSString *savedToken(void) {
 - (void)pushPresence {
     if (!_open || !_token.length) return;
     NSTimeInterval now = NSDate.timeIntervalSinceReferenceDate;
-    if (!_force && now - _lastSend < 4) return;
+    if (!_force && now - _lastSend < 0.35) return;
     NSData *data = [NSJSONSerialization dataWithJSONObject:[self presenceBody] options:0 error:nil];
     NSString *sig = data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : @"";
     if (!_force && [sig isEqualToString:_signature ?: @""]) return;

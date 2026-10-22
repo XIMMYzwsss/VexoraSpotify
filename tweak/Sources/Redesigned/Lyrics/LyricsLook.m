@@ -3,10 +3,12 @@
 #import "Core/SGCore.h"
 #import "Settings/SGPageStyle.h"
 #import "Shared/Fonts/Fonts.h"
+#import "Shared/Player/PlayerState.h"
 #import "Redesigned/Kit/SGRBridges.h"
 #import <CoreText/CoreText.h>
 
 NSNotificationName const SGRLyricsLookDidChangeNotification = @"spotifyglass.redesign.lyricsLookDidChange";
+NSNotificationName const SGRLyricsCoverColorsDidChangeNotification = @"spotifyglass.redesign.lyricsCoverColorsDidChange";
 
 // The sliders' ranges, which a stored look is held to as well.
 static const SGRLyricsLook kLeast = {22, 12, 0, 0, 0}, kMost = {40, 40, 2, 2, 2};
@@ -216,11 +218,98 @@ static NSArray<UIColor *> *coverPair(UIImage *image) {
     return @[colorFromBytes(c1r, c1g, c1b), colorFromBytes(c2r, c2g, c2b)];
 }
 
+static NSArray<UIColor *> *sg_coverPair;
+static NSString *sg_coverPairURI, *sg_coverFetchURI;
+static NSURLSessionDataTask *sg_coverFetch;
+
+static NSURL *coverSampleURL(SPTPlayerTrack *track) {
+    NSDictionary *metadata = [track respondsToSelector:@selector(metadata)] ? track.metadata : nil;
+    if (![metadata isKindOfClass:NSDictionary.class]) return nil;
+    for (NSString *field in @[@"image_small_url", @"image_url", @"image_large_url", @"image_xlarge_url"]) {
+        NSString *value = metadata[field];
+        if (![value isKindOfClass:NSString.class] || !value.length) continue;
+        if ([value hasPrefix:@"https://"]) return [NSURL URLWithString:value];
+        if ([value hasPrefix:@"spotify:image:"])
+            return [NSURL URLWithString:[@"https://i.scdn.co/image/" stringByAppendingString:[value substringFromIndex:14]]];
+    }
+    return nil;
+}
+
+static BOOL samePair(NSArray<UIColor *> *a, NSArray<UIColor *> *b) {
+    if (a.count < 2 || b.count < 2) return NO;
+    CGFloat ar, ag, ab, aa, br, bg, bb, ba;
+    [a[0] getRed:&ar green:&ag blue:&ab alpha:&aa];
+    [b[0] getRed:&br green:&bg blue:&bb alpha:&ba];
+    if (fabs(ar - br) > 0.02 || fabs(ag - bg) > 0.02 || fabs(ab - bb) > 0.02) return NO;
+    [a[1] getRed:&ar green:&ag blue:&ab alpha:&aa];
+    [b[1] getRed:&br green:&bg blue:&bb alpha:&ba];
+    return fabs(ar - br) <= 0.02 && fabs(ag - bg) <= 0.02 && fabs(ab - bb) <= 0.02;
+}
+
+static void publishCoverPair(NSArray<UIColor *> *pair, NSString *uri) {
+    if (!pair.count || !uri.length) return;
+    if ([uri isEqualToString:sg_coverPairURI] && samePair(pair, sg_coverPair)) return;
+    sg_coverPair = pair;
+    sg_coverPairURI = uri;
+    [NSNotificationCenter.defaultCenter postNotificationName:SGRLyricsCoverColorsDidChangeNotification object:nil];
+}
+
+static void refreshCoverColors(void) {
+    SPTPlayerTrack *track = SGPlayerState().track;
+    NSString *uri = SGURIString(track.URI);
+    if (!uri.length) return;
+    if ([uri isEqualToString:sg_coverPairURI] && sg_coverPair.count >= 2) return;
+    NSString *artURI = nil;
+    UIImage *shown = SGRNowPlayingArtwork(&artURI, NULL);
+    if (shown && [artURI isEqualToString:uri]) {
+        publishCoverPair(coverPair(shown), uri);
+        return;
+    }
+    if ([sg_coverFetchURI isEqualToString:uri]) return;
+    NSURL *url = coverSampleURL(track);
+    if (!url) return;
+    [sg_coverFetch cancel];
+    sg_coverFetchURI = uri;
+    NSString *wanted = uri;
+    sg_coverFetch = [NSURLSession.sharedSession dataTaskWithURL:url completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        (void)response; (void)error;
+        UIImage *image = data.length ? [UIImage imageWithData:data] : nil;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if ([sg_coverFetchURI isEqualToString:wanted]) sg_coverFetchURI = nil;
+            sg_coverFetch = nil;
+            if (![wanted isEqualToString:SGURIString(SGPlayerState().track.URI)] || !image) return;
+            publishCoverPair(coverPair(image), wanted);
+        });
+    }];
+    [sg_coverFetch resume];
+}
+
+@interface SGRCoverColorWatcher : NSObject <SGPlayerStateObserver>
+@end
+@implementation SGRCoverColorWatcher
+- (void)playerStateDidChange:(SPTPlayerState *)state { (void)state; refreshCoverColors(); }
+@end
+
+static void startCoverColors(void) {
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        SGAddPlayerStateObserver([SGRCoverColorWatcher new]);
+        [NSNotificationCenter.defaultCenter addObserverForName:SGRNowPlayingArtworkDidChangeNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
+            (void)note;
+            refreshCoverColors();
+        }];
+        refreshCoverColors();
+    });
+}
+
 UIColor *SGRLyricsCoverColor(void) {
-    return coverPair(SGRNowPlayingArtwork(NULL, NULL)).firstObject;
+    startCoverColors();
+    return SGRLyricsCoverColors().firstObject;
 }
 
 NSArray<UIColor *> *SGRLyricsCoverColors(void) {
+    startCoverColors();
+    if (sg_coverPair.count >= 2) return sg_coverPair;
     return coverPair(SGRNowPlayingArtwork(NULL, NULL));
 }
 

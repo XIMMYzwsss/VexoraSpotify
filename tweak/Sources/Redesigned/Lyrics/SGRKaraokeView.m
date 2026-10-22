@@ -1283,7 +1283,7 @@ typedef struct {
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(playerTransitionChanged:) name:SGPlayerTransitionEndedNotification object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(restyle) name:SGRLyricsTextDidChangeNotification object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(lookChanged) name:SGRLyricsLookDidChangeNotification object:nil];
-    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(coverChanged) name:SGRNowPlayingArtworkDidChangeNotification object:nil];
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(coverChanged) name:SGRLyricsCoverColorsDidChangeNotification object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(rebuild) name:SGLyricsRomanisedDidChangeNotification object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(translationsChanged) name:SGLyricsTranslationsDidChangeNotification object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(meaningMarkersChanged) name:SGLyricsMeaningMarkersDidChangeNotification object:nil];
@@ -1333,8 +1333,8 @@ typedef struct {
 }
 
 - (void)coverChanged {
-    if (SGRLyricsColorModeNow() == SGRLyricsColorModeCover) [self lookChanged];
-    else [self setNeedsLayout];
+    if (!_compact) [self layoutFullscreenBackdrop];
+    if (SGRLyricsColorModeNow() == SGRLyricsColorModeCover) [self restyle];
 }
 
 - (void)lookChanged {

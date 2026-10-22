@@ -23,43 +23,6 @@ static void hideSpotifyGlass(UIView *root, UIView *backdrop) {
     }
 }
 
-static UIColor *averageRGB(uint8_t *px, int count) {
-    if (count <= 0) return UIColor.whiteColor;
-    double r = 0, g = 0, b = 0;
-    for (int i = 0; i < count; i++) {
-        r += px[i * 4];
-        g += px[i * 4 + 1];
-        b += px[i * 4 + 2];
-    }
-    r /= count;
-    g /= count;
-    b /= count;
-    return [UIColor colorWithRed:r / 255.0 green:g / 255.0 blue:b / 255.0 alpha:1];
-}
-
-static NSArray<UIColor *> *colorsFromArtwork(UIImage *image) {
-    UIColor *fallback = [UIColor colorWithRed:30 / 255.0 green:215 / 255.0 blue:96 / 255.0 alpha:1];
-    if (!image.CGImage) return @[fallback, fallback];
-    const size_t w = 40, h = 40;
-    uint8_t *data = calloc(w * h, 4);
-    if (!data) return @[fallback, fallback];
-    CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
-    CGContextRef ctx = CGBitmapContextCreate(data, w, h, 8, w * 4, space,
-        (CGBitmapInfo)(kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big));
-    CGColorSpaceRelease(space);
-    if (!ctx) {
-        free(data);
-        return @[fallback, fallback];
-    }
-    CGContextDrawImage(ctx, CGRectMake(0, 0, w, h), image.CGImage);
-    CGContextRelease(ctx);
-    int quarter = (int)(w * h / 4);
-    UIColor *top = averageRGB(data, quarter);
-    UIColor *bottom = averageRGB(data + (w * h - quarter) * 4, quarter);
-    free(data);
-    return @[top, bottom];
-}
-
 static CAGradientLayer *radialLayer(UIColor *center, CGPoint origin) {
     CAGradientLayer *layer = [CAGradientLayer layer];
     layer.type = kCAGradientLayerRadial;
@@ -72,7 +35,7 @@ static CAGradientLayer *radialLayer(UIColor *center, CGPoint origin) {
 }
 
 static void refreshRadialColors(UIView *backdrop) {
-    NSArray<UIColor *> *pair = colorsFromArtwork(SGRNowPlayingArtwork(NULL, NULL));
+    NSArray<UIColor *> *pair = SGRLyricsCoverColors();
     for (NSNumber *tag in @[@(kLyricsRadialGlowTagA), @(kLyricsRadialGlowTagB)]) {
         UIView *host = [backdrop viewWithTag:tag.integerValue];
         if (!host) continue;
@@ -165,7 +128,7 @@ static void layoutLyricsBackdrop(UIView *page) {
         id token = [NSNotificationCenter.defaultCenter addObserverForName:SGRLyricsLookDidChangeNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
             [page setNeedsLayout];
         }];
-        id token2 = [NSNotificationCenter.defaultCenter addObserverForName:SGRNowPlayingArtworkDidChangeNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
+        id token2 = [NSNotificationCenter.defaultCenter addObserverForName:SGRLyricsCoverColorsDidChangeNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
             UIView *shell = lyricsShell(page);
             UIView *backdrop = objc_getAssociatedObject(shell, &kBackdropKey);
             if (backdrop && !backdrop.hidden && SGRLyricsFullscreenBackgroundNow() == SGRLyricsFullscreenBackgroundCover)
