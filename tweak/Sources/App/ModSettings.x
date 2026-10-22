@@ -29,6 +29,8 @@ static SGModRow *pageRow(NSString *title, NSString *symbol, UIViewController *(^
     return SGWithSymbol(SGPageRow(title, page), symbol);
 }
 
+static const CGFloat kBrandGradientStops[] = {0, 0.55, 1};
+
 static UIColor *SGVexoraBrandTextColor(CGFloat width, CGFloat height) {
     width = MAX(1, width);
     height = MAX(1, height);
@@ -37,11 +39,10 @@ static UIColor *SGVexoraBrandTextColor(CGFloat width, CGFloat height) {
         (id)[UIColor colorWithRed:0.52 green:0.42 blue:1 alpha:1].CGColor,
         (id)[UIColor colorWithRed:0.68 green:0.32 blue:0.98 alpha:1].CGColor,
     ];
-    CGFloat locations[] = {0, 0.55, 1};
     UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(width, height)];
     UIImage *image = [renderer imageWithActions:^(UIGraphicsImageRendererContext *context) {
         CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
-        CGGradientRef gradient = CGGradientCreateWithColors(space, (__bridge CFArrayRef)colors, locations);
+        CGGradientRef gradient = CGGradientCreateWithColors(space, (__bridge CFArrayRef)colors, kBrandGradientStops);
         CGContextDrawLinearGradient(context.CGContext, gradient, CGPointZero, CGPointMake(width, 0), 0);
         CGGradientRelease(gradient);
         CGColorSpaceRelease(space);
