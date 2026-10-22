@@ -1,6 +1,7 @@
 // The lyrics' look as stored, its presets and the preview's lines. The page is LyricsLookSettings.m.
 #import "LyricsLook.h"
 #import "Core/SGCore.h"
+#import "Settings/SGPageStyle.h"
 #import "Shared/Fonts/Fonts.h"
 
 NSNotificationName const SGRLyricsLookDidChangeNotification = @"spotifyglass.redesign.lyricsLookDidChange";
