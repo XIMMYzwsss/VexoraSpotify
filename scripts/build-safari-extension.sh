@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HOST_PLIST="${1:?usage: $0 <host Info.plist> <output directory>}"
 OUT="${2:?usage: $0 <host Info.plist> <output directory>}"
-NAME=TaurusOpenSpotify
+NAME=VexoraSpotifyOpenSpotify
 APPEX="$OUT/$NAME.appex"
 xcrun --sdk iphoneos --find clang >/dev/null 2>&1 || {
   echo "Safari extension requires full Xcode with an iPhoneOS SDK. Select it with xcode-select or DEVELOPER_DIR." >&2
