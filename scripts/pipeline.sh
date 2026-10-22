@@ -64,8 +64,8 @@ rm -f "$ROOT/out/.info.plist"
 # a fork left behind by a release is named for the version it really is.
 MOD_VERSION="$(cat "$ROOT/version.txt" 2>/dev/null || true)"
 : "${MOD_VERSION:=0.0.0}"
-OUT="${OUT:-$ROOT/out/Taurus-$MOD_VERSION.ipa}"
-echo "==> Taurus $MOD_VERSION on Spotify $SPOTIFY_VERSION -> $OUT"
+OUT="${OUT:-$ROOT/out/VexoraSpotify-$MOD_VERSION.ipa}"
+echo "==> VexoraSpotify $MOD_VERSION on Spotify $SPOTIFY_VERSION -> $OUT"
 
 # The flag table is generated rather than committed, so it always matches the IPA being built.
 if [ ! -f "$ROOT/tweak/Sources/Shared/Flags/SGFlagList.m" ]; then
@@ -108,7 +108,7 @@ if [ "$WITH_SAFARI" = 1 ]; then
   export BUNDLE_ID
   bash "$ROOT/scripts/build-safari-extension.sh" "$ROOT/out/.safari-host.plist" "$SAFARI_DIR"
   rm -f "$ROOT/out/.safari-host.plist"
-  FILES+=("$SAFARI_DIR/TaurusOpenSpotify.appex")
+  FILES+=("$SAFARI_DIR/VexoraSpotifyOpenSpotify.appex")
 fi
 
 # Spotify's widget reads what the app writes through App Group suites the re-signed IPA is not entitled
