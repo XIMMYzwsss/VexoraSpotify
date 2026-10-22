@@ -10,10 +10,10 @@ def make_plist(host, bundle_override=""):
     return {
         "CFBundleDevelopmentRegion": "en",
         "CFBundleDisplayName": "Open in Spotify",
-        "CFBundleExecutable": "TaurusOpenSpotify",
-        "CFBundleIdentifier": bundle + ".TaurusOpenSpotify",
+        "CFBundleExecutable": "VexoraSpotifyOpenSpotify",
+        "CFBundleIdentifier": bundle + ".VexoraSpotifyOpenSpotify",
         "CFBundleInfoDictionaryVersion": "6.0",
-        "CFBundleName": "TaurusOpenSpotify",
+        "CFBundleName": "VexoraSpotifyOpenSpotify",
         "CFBundlePackageType": "XPC!",
         "CFBundleShortVersionString": host["CFBundleShortVersionString"],
         "CFBundleVersion": host["CFBundleVersion"],
@@ -22,7 +22,7 @@ def make_plist(host, bundle_override=""):
         "UIDeviceFamily": [1, 2],
         "NSExtension": {
             "NSExtensionPointIdentifier": "com.apple.Safari.web-extension",
-            "NSExtensionPrincipalClass": "TaurusSafariWebExtensionHandler",
+            "NSExtensionPrincipalClass": "VexoraSpotifySafariWebExtensionHandler",
         },
     }
 
