@@ -1,12 +1,12 @@
 (() => {
     "use strict";
-    if (window.top !== window || globalThis.__taurusOpenSpotify) return;
-    globalThis.__taurusOpenSpotify = true;
+    if (window.top !== window || globalThis.__vexoraSpotifyOpenSpotify) return;
+    globalThis.__vexoraSpotifyOpenSpotify = true;
     const api = globalThis.browser;
     let automatic = true, current = null, panel = null, dismissed = null;
     let lastHref = "", lastAttempt = null, ready = false;
     const attempted = new Set();
-    const storageKey = "taurus.openSpotify.lastAttempt";
+    const storageKey = "vexoraspotify.openSpotify.lastAttempt";
     try { lastAttempt = JSON.parse(sessionStorage.getItem(storageKey)); } catch { /* private browsing/storage disabled */ }
     function remember(uri) {
         attempted.add(uri);
