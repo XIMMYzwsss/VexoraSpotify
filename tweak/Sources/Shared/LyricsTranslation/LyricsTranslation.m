@@ -10,7 +10,7 @@
 
 // gemini-flash-latest follows each Flash release; Google gives two weeks' notice of a breaking change.
 static NSString *const kEndpoint = @"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent";
-static NSString *const kService = @"Taurus.Gemini", *const kAccount = @"api-key";
+static NSString *const kService = @"VexoraSpotify.Gemini", *const kAccount = @"api-key";
 
 #pragma mark - the key
 
