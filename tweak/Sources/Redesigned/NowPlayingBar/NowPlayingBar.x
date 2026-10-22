@@ -5,6 +5,8 @@
 #import "Shared/Lyrics/Lyrics.h"
 #import "Shared/Player/NowPlayingExtras.h"
 #import "Shared/Player/PlayerState.h"
+#import "Shared/Player/SGLastTrack.h"
+#import "Redesigned/Kit/SGRRepaint.h"
 #import "NowPlayingBar.h"
 #import <MediaPlayer/MediaPlayer.h>
 #import <objc/message.h>
@@ -269,12 +271,39 @@ static SGRMiniPlayer *miniPlayer(void) {
 }
 
 // The cover the card shows, which Spotify loads a moment after a new track: read off the card on each of its layout passes.
+static void refreshMini(void);
+
+static UIImage *sg_pillCover;
+static NSString *sg_pillCoverURI;
+
 static UIImage *cardCover(void) {
     __block UIImage *image = nil;
-    SGForEachView(sg_cardArtwork, ^(UIView *v) {
-        if (!image && [v isKindOfClass:UIImageView.class]) image = ((UIImageView *)v).image;
-    });
+    void (^scan)(UIView *) = ^(UIView *root) {
+        if (!root) return;
+        SGForEachView(root, ^(UIView *v) {
+            if (!image && [v isKindOfClass:UIImageView.class]) {
+                UIImage *img = ((UIImageView *)v).image;
+                if (img.size.width >= 8 && img.size.height >= 8) image = img;
+            }
+        });
+    };
+    scan(sg_cardArtwork);
+    if (!image) scan(sgr_nowPlayingCard);
     return image;
+}
+
+static void fetchPillCoverIfNeeded(void) {
+    SPTPlayerState *state = SGPlayerState();
+    NSString *uri = SGURIString(state.track.URI);
+    if (!uri.length || (sg_pillCover && [uri isEqualToString:sg_pillCoverURI])) return;
+    SGShownTrack *track = SGShownTrackNow();
+    if (!track.artworkURL) return;
+    SGShownTrackArtwork(track, ^(UIImage *image) {
+        if (!image) return;
+        sg_pillCover = image;
+        sg_pillCoverURI = uri;
+        refreshMini();
+    });
 }
 
 static UIImage *currentCover(void) {
@@ -286,7 +315,12 @@ static UIImage *currentCover(void) {
         UIImage *image = [artwork imageWithSize:CGSizeMake(600, 600)];
         if (image) return image;
     }
-    return cardCover();
+    UIImage *card = cardCover();
+    if (card) return card;
+    NSString *uri = SGURIString(state.track.URI);
+    if (sg_pillCover && uri.length && [uri isEqualToString:sg_pillCoverURI]) return sg_pillCover;
+    fetchPillCoverIfNeeded();
+    return sg_pillCover;
 }
 
 static BOOL hasTrack(void) {
@@ -335,6 +369,11 @@ static void openPlayer(void) {
 @implementation SGRMiniPlayerWatcher
 - (void)playerStateDidChange:(SPTPlayerState *)state {
     dispatch_async(dispatch_get_main_queue(), ^{
+        NSString *uri = SGURIString(state.track.URI);
+        if (!uri.length || ![uri isEqualToString:sg_pillCoverURI ?: @""]) {
+            sg_pillCover = nil;
+            sg_pillCoverURI = nil;
+        }
         // The queue ended with the bar minimized: the pill has nothing left to show, so the whole bar comes back.
         if (!hasTrack() && SGRTabBarMinimized()) SGRSetTabBarMinimized(NO, YES);
         refreshMini();
