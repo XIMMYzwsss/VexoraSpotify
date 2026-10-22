@@ -341,28 +341,27 @@ static BOOL isSettingsRoot(UIViewController *list) {
         objc_setAssociatedObject(sub, &kRowKey, row, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         [sub addSubview:row];
     }
+    updatePlanBadge(((UIViewController *)self).view);
 }
 %end
 
 static UIColor *planBadgeColor(void) {
-    if (!SGRedesignedUI()) return SGGreen();
-    NSInteger rgb = SGInt(@"spotifyglass.redesign.accent", 0x37F200);
-    if (rgb < 0 || rgb > 0xFFFFFF) return SGGreen();
-    return [UIColor colorWithRed:((rgb >> 16) & 0xFF) / 255.0
-                           green:((rgb >> 8) & 0xFF) / 255.0
-                            blue:(rgb & 0xFF) / 255.0 alpha:1];
+    return [UIColor colorWithRed:0.52 green:0.28 blue:0.92 alpha:1];
+}
+
+static BOOL isPlanBadgeLabel(NSString *text) {
+    return [text isEqualToString:@"Spotify Free"] || [text isEqualToString:@"Taurine"]
+        || [text isEqualToString:@"Vexora Spotify"] || [text isEqualToString:@"Spotify Premium"];
 }
 
 static void updatePlanBadge(UIView *root) {
     UIColor *color = planBadgeColor();
-    CGFloat red = 0, green = 0, blue = 0, alpha = 0;
-    [color getRed:&red green:&green blue:&blue alpha:&alpha];
-    UIColor *textColor = (0.2126 * red + 0.7152 * green + 0.0722 * blue) > 0.55 ? UIColor.blackColor : UIColor.whiteColor;
+    UIColor *textColor = UIColor.whiteColor;
     SGForEachView(root, ^(UIView *view) {
         if (![view isKindOfClass:UILabel.class]) return;
         UILabel *label = (UILabel *)view;
-        if (![label.text isEqualToString:@"Spotify Free"] && ![label.text isEqualToString:@"Taurine"]) return;
-        label.text = @"Taurine";
+        if (!isPlanBadgeLabel(label.text)) return;
+        label.text = @"Vexora Spotify";
         label.textColor = textColor;
         UIView *badge = label.superview;
         badge.backgroundColor = color;
@@ -371,7 +370,7 @@ static void updatePlanBadge(UIView *root) {
     });
 }
 
-// This hook carries the drawer's "Taurine" plan badge; the mod settings row is gone from the drawer.
+// Side drawer and settings lists: relabel the plan badge.
 %hook _TtC23SideDrawer_ListPageImpl18ListViewController
 - (void)viewDidLayoutSubviews {
     %orig;
