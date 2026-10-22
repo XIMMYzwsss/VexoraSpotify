@@ -21,6 +21,7 @@
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Redesigned/Navbar/Navbar.h"
+#import "Settings/SGPage.h"
 #import "Home.h"
 
 // Tries at finding the tab's name before settling for the English one: a miss walks the window.
@@ -29,6 +30,7 @@ static const NSUInteger kTitleTries = 8;
 static char kTitleKey, kTabKey;
 static __weak UILabel *sg_title;
 static __weak UIView *sg_face;
+static UIButton *sg_settingsButton;
 static UIVisualEffectView *sg_bar;
 static CAGradientLayer *sg_barMask, *sg_barTint;
 static CGFloat sg_scrollProgress;
@@ -67,6 +69,31 @@ static NSString *tabName(UIWindow *window) {
     sg_tabName = [name copy];
     SGLog(@"redesign home: title \"%@\" from the tab bar", sg_tabName);
     return sg_tabName;
+}
+
+@interface SGVexoraHomeSettingsTap : NSObject
+@end
+@implementation SGVexoraHomeSettingsTap
+- (void)open:(UIButton *)sender { SGOpenModSettings(sender); }
+@end
+static SGVexoraHomeSettingsTap *sg_settingsTap;
+
+static UIButton *settingsButtonIn(UIView *header) {
+    if (!sg_settingsButton) {
+        if (!sg_settingsTap) sg_settingsTap = [SGVexoraHomeSettingsTap new];
+        sg_settingsButton = [UIButton buttonWithType:UIButtonTypeSystem];
+        UIImage *icon = [UIImage systemImageNamed:@"slider.horizontal.3" withConfiguration:
+                         [UIImageSymbolConfiguration configurationWithPointSize:17 weight:UIImageSymbolWeightSemibold]];
+        [sg_settingsButton setImage:icon forState:UIControlStateNormal];
+        sg_settingsButton.tintColor = UIColor.whiteColor;
+        sg_settingsButton.backgroundColor = [UIColor colorWithWhite:1 alpha:0.12];
+        sg_settingsButton.layer.cornerRadius = 18;
+        sg_settingsButton.layer.cornerCurve = kCACornerCurveContinuous;
+        sg_settingsButton.accessibilityLabel = @"VexoraSpotify settings";
+        [sg_settingsButton addTarget:sg_settingsTap action:@selector(open:) forControlEvents:UIControlEventPrimaryActionTriggered];
+    }
+    if (sg_settingsButton.superview != header) [header addSubview:sg_settingsButton];
+    return sg_settingsButton;
 }
 
 static UILabel *titleIn(UIView *header) {
@@ -181,6 +208,11 @@ static void layoutHeader(UIViewController *page) {
     if (![title.font isEqual:font]) title.font = font;
 
     CGFloat trailing = face ? CGRectGetMinX([stack convertRect:face.frame toView:header]) - SGRGrid : header.bounds.size.width - SGRSideMargin;
+    UIButton *settings = settingsButtonIn(header);
+    CGFloat settingsSide = 36;
+    CGFloat settingsX = trailing - settingsSide;
+    settings.frame = CGRectMake(settingsX, round(CGRectGetMidY(stack.frame) - settingsSide / 2), settingsSide, settingsSide);
+    trailing = settingsX - 8;
     CGFloat height = ceil(font.lineHeight);
     CGRect frame = CGRectMake(SGRSideMargin, round(CGRectGetMidY(stack.frame) - height / 2), MAX(0, trailing - SGRSideMargin), height);
     if (!CGRectEqualToRect(title.frame, frame)) title.frame = frame;
