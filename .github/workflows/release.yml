@@ -3,9 +3,9 @@
 # second job builds the tweak's .deb and attaches it. No IPA is built or published here.
 name: Release
 
+# Manual only: auto push used to queue ahead of Build IPA on private repos (one job at a time).
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
