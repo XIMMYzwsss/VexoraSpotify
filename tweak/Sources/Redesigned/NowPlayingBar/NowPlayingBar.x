@@ -1,5 +1,6 @@
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRRepaint.h"
+#import "Redesigned/Kit/SGRBridges.h"
 #import "Redesigned/Kit/SGRTokens.h"
 #import "Redesigned/Navbar/Navbar.h"
 #import "Shared/Lyrics/Lyrics.h"
@@ -315,6 +316,8 @@ static UIImage *currentCover(void) {
         UIImage *image = [artwork imageWithSize:CGSizeMake(600, 600)];
         if (image) return image;
     }
+    UIImage *playing = SGRNowPlayingArtwork(NULL, NULL);
+    if (playing) return playing;
     UIImage *card = cardCover();
     if (card) return card;
     NSString *uri = SGURIString(state.track.URI);

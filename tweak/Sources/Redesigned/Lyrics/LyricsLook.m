@@ -146,29 +146,82 @@ static NSInteger lyricsTextRGB(void) {
     return kDefaultLyricsRGB;
 }
 
-static UIColor *sampledCover(UIImage *image) {
-    UIColor *fallback = UIColor.whiteColor;
-    if (!image.CGImage) return fallback;
-    uint8_t px[4] = {255, 255, 255, 255};
+static UIColor *colorFromBytes(CGFloat r, CGFloat g, CGFloat b) {
+    return [UIColor colorWithRed:r / 255.0 green:g / 255.0 blue:b / 255.0 alpha:1];
+}
+
+static CGFloat dist2(CGFloat ar, CGFloat ag, CGFloat ab, CGFloat br, CGFloat bg, CGFloat bb) {
+    CGFloat dr = ar - br, dg = ag - bg, db = ab - bb;
+    return dr * dr + dg * dg + db * db;
+}
+
+// The desktop Vexora cover read: a 40×40 sample, near-black and near-white dropped, then two clusters.
+static NSArray<UIColor *> *coverPair(UIImage *image) {
+    UIColor *fallback = [UIColor colorWithRed:30 / 255.0 green:215 / 255.0 blue:96 / 255.0 alpha:1];
+    if (!image.CGImage) return @[fallback, fallback];
+    const int w = 40, h = 40;
+    uint8_t *data = calloc((size_t)(w * h), 4);
+    if (!data) return @[fallback, fallback];
     CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
-    CGContextRef ctx = CGBitmapContextCreate(px, 1, 1, 8, 4, space, (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
+    CGContextRef ctx = CGBitmapContextCreate(data, w, h, 8, w * 4, space, (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
     CGColorSpaceRelease(space);
-    if (!ctx) return fallback;
-    CGContextDrawImage(ctx, CGRectMake(0, 0, 1, 1), image.CGImage);
+    if (!ctx) { free(data); return @[fallback, fallback]; }
+    CGContextDrawImage(ctx, CGRectMake(0, 0, w, h), image.CGImage);
     CGContextRelease(ctx);
-    CGFloat r = px[0] / 255.0, g = px[1] / 255.0, b = px[2] / 255.0;
-    CGFloat luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    if (luma < 0.35) {
-        CGFloat lift = (0.35 - luma) / 0.35;
-        r += (1 - r) * lift;
-        g += (1 - g) * lift;
-        b += (1 - b) * lift;
+    CGFloat rs[1600], gs[1600], bs[1600];
+    int count = 0;
+    for (int i = 0; i < w * h; i++) {
+        int a = data[i * 4 + 3];
+        if (a < 200) continue;
+        int r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2];
+        CGFloat lum = (r + g + b) / 3.0;
+        if (lum < 16 || lum > 244) continue;
+        rs[count] = r; gs[count] = g; bs[count] = b;
+        count++;
     }
-    return [UIColor colorWithRed:r green:g blue:b alpha:1];
+    free(data);
+    if (!count) return @[UIColor.whiteColor, UIColor.whiteColor];
+    CGFloat meanR = 0, meanG = 0, meanB = 0;
+    for (int i = 0; i < count; i++) { meanR += rs[i]; meanG += gs[i]; meanB += bs[i]; }
+    meanR /= count; meanG /= count; meanB /= count;
+    int seedA = 0, seedB = 0;
+    CGFloat best = -1;
+    for (int i = 0; i < count; i++) {
+        CGFloat d = dist2(rs[i], gs[i], bs[i], meanR, meanG, meanB);
+        if (d > best) { best = d; seedA = i; }
+    }
+    best = -1;
+    for (int i = 0; i < count; i++) {
+        CGFloat d = dist2(rs[i], gs[i], bs[i], rs[seedA], gs[seedA], bs[seedA]);
+        if (d > best) { best = d; seedB = i; }
+    }
+    CGFloat c1r = rs[seedA], c1g = gs[seedA], c1b = bs[seedA], c2r = rs[seedB], c2g = gs[seedB], c2b = bs[seedB];
+    CGFloat n1 = 0, n2 = 0;
+    for (int iter = 0; iter < 8; iter++) {
+        CGFloat s1r = 0, s1g = 0, s1b = 0, s2r = 0, s2g = 0, s2b = 0;
+        n1 = n2 = 0;
+        for (int i = 0; i < count; i++) {
+            BOOL first = dist2(rs[i], gs[i], bs[i], c1r, c1g, c1b) <= dist2(rs[i], gs[i], bs[i], c2r, c2g, c2b);
+            if (first) { s1r += rs[i]; s1g += gs[i]; s1b += bs[i]; n1++; }
+            else { s2r += rs[i]; s2g += gs[i]; s2b += bs[i]; n2++; }
+        }
+        if (n1) { c1r = s1r / n1; c1g = s1g / n1; c1b = s1b / n1; }
+        if (n2) { c2r = s2r / n2; c2g = s2g / n2; c2b = s2b / n2; }
+    }
+    if (n2 > n1) {
+        CGFloat tr = c1r, tg = c1g, tb = c1b;
+        c1r = c2r; c1g = c2g; c1b = c2b;
+        c2r = tr; c2g = tg; c2b = tb;
+    }
+    return @[colorFromBytes(c1r, c1g, c1b), colorFromBytes(c2r, c2g, c2b)];
 }
 
 UIColor *SGRLyricsCoverColor(void) {
-    return sampledCover(SGRNowPlayingArtwork(NULL, NULL));
+    return coverPair(SGRNowPlayingArtwork(NULL, NULL)).firstObject;
+}
+
+NSArray<UIColor *> *SGRLyricsCoverColors(void) {
+    return coverPair(SGRNowPlayingArtwork(NULL, NULL));
 }
 
 NSArray<NSString *> *SGRLyricsColorModeNames(void) {
@@ -330,7 +383,7 @@ SGRLyricsAnimation SGRLyricsAnimationNow(void) {
 
 NSArray<NSString *> *SGRLyricsFontChoices(void) {
     NSMutableArray<NSString *> *choices = [@[@"System", @"Rounded", @"Serif", @"Mono"] mutableCopy];
-    if (SGRLyricsVexoraLookActive() && SGRegisterMojanglesFont()) [choices addObject:SGRLyricsFontMojangles];
+    if (SGRegisterMojanglesFont()) [choices addObject:SGRLyricsFontMojangles];
     NSString *imported = [NSUserDefaults.standardUserDefaults stringForKey:SGKeyAppFontName];
     if (imported.length && SGRegisterCustomFont()) [choices addObject:imported];
     for (NSString *family in SGAppFontFamilies()) if (![choices containsObject:family]) [choices addObject:family];
@@ -339,7 +392,6 @@ NSArray<NSString *> *SGRLyricsFontChoices(void) {
 
 NSString *SGRLyricsFontChoice(void) {
     NSString *saved = [NSUserDefaults.standardUserDefaults stringForKey:SGRKeyLyricsFont];
-    if ([saved isEqualToString:SGRLyricsFontMojangles] && !SGRLyricsVexoraLookActive()) saved = @"System";
     return saved.length && [SGRLyricsFontChoices() containsObject:saved] ? saved : @"System";
 }
 

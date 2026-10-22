@@ -1500,7 +1500,6 @@ typedef struct {
 
 - (void)layoutFullscreenBackdrop {
     static const NSInteger kTag = 88005;
-    static char kBlurKey;
     SGRLyricsFullscreenBackground mode = SGRLyricsFullscreenBackgroundNow();
     UIView *plate = [self viewWithTag:kTag];
     if (!plate) {
@@ -1520,6 +1519,7 @@ typedef struct {
         if ([sub isKindOfClass:UIVisualEffectView.class]) blurView = (UIVisualEffectView *)sub;
     }
     if (mode == SGRLyricsFullscreenBackgroundSolid) {
+        plate.hidden = NO;
         artView.hidden = blurView.hidden = YES;
         for (CALayer *sub in [plate.layer.sublayers copy]) if ([sub isKindOfClass:CAGradientLayer.class]) [sub removeFromSuperlayer];
         UIColor *color = SGRLyricsSolidBackgroundColor();
@@ -1530,47 +1530,21 @@ typedef struct {
         return;
     }
     if (mode == SGRLyricsFullscreenBackgroundOriginal) {
-        for (CALayer *sub in [plate.layer.sublayers copy]) if ([sub isKindOfClass:CAGradientLayer.class]) [sub removeFromSuperlayer];
-        if (!artView) {
-            artView = [UIImageView new];
-            artView.contentMode = UIViewContentModeScaleAspectFill;
-            [plate addSubview:artView];
-        }
-        if (!blurView) {
-            blurView = [[UIVisualEffectView alloc] initWithEffect:nil];
-            blurView.userInteractionEnabled = NO;
-            [plate addSubview:blurView];
-        }
-        artView.hidden = blurView.hidden = NO;
-        artView.frame = blurView.frame = plate.bounds;
-        artView.autoresizingMask = blurView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        UIImage *art = SGRNowPlayingArtwork(NULL, NULL);
-        if (art) artView.image = art;
-        plate.backgroundColor = UIColor.blackColor;
+        plate.hidden = YES;
         self.backgroundColor = UIColor.clearColor;
         self.opaque = NO;
-        UIViewPropertyAnimator *anim = objc_getAssociatedObject(blurView, &kBlurKey);
-        if (!anim) {
-            UIVisualEffectView *effectView = blurView;
-            anim = [[UIViewPropertyAnimator alloc] initWithDuration:1 curve:UIViewAnimationCurveLinear animations:^{
-                effectView.effect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleDark];
-            }];
-            anim.pausesOnCompletion = YES;
-            [anim startAnimation];
-            [anim pauseAnimation];
-            objc_setAssociatedObject(blurView, &kBlurKey, anim, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        }
-        anim.fractionComplete = SGRLyricsOriginalBlur() / 100.0;
         return;
     }
+    plate.hidden = NO;
     artView.hidden = blurView.hidden = YES;
     plate.backgroundColor = UIColor.blackColor;
     plate.opaque = YES;
     self.backgroundColor = UIColor.blackColor;
     self.opaque = YES;
     for (CALayer *sub in [plate.layer.sublayers copy]) if ([sub isKindOfClass:CAGradientLayer.class]) [sub removeFromSuperlayer];
-    UIColor *tint = SGRLyricsCoverColor();
+    NSArray<UIColor *> *pair = SGRLyricsCoverColors();
     for (int i = 0; i < 2; i++) {
+        UIColor *tint = pair[i];
         CAGradientLayer *rad = [CAGradientLayer layer];
         rad.type = kCAGradientLayerRadial;
         rad.colors = @[(id)[tint colorWithAlphaComponent:0.42].CGColor, (id)[tint colorWithAlphaComponent:0].CGColor];

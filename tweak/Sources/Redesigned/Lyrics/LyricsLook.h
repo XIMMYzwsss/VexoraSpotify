@@ -48,6 +48,7 @@ void SGRSetLyricsTextColor(UIColor *color, id changer);
 void SGRPickLyricsTextColor(void);
 UIColor *SGRLyricsColorForLineAtIndex(NSUInteger lineIndex, NSUInteger lineCount);
 UIColor *SGRLyricsCoverColor(void);
+NSArray<UIColor *> *SGRLyricsCoverColors(void);
 
 typedef NS_ENUM(NSInteger, SGRLyricsFullscreenBackground) {
     SGRLyricsFullscreenBackgroundSolid = 0,

@@ -43,6 +43,7 @@ static NSString *savedToken(void) {
     NSURLSessionWebSocketTask *_task;
     NSTimer *_heartbeat, *_tick;
     NSString *_token, *_signature, *_track, *_cover;
+    long long _stampStart, _stampEnd;
     NSInteger _seq;
     BOOL _open, _identified, _dirty, _force;
     NSTimeInterval _lastSend;
@@ -92,9 +93,13 @@ static NSString *savedToken(void) {
     return @"";
 }
 
-- (NSString *)discordImage:(NSString *)https {
-    if (![https hasPrefix:@"https://"]) return @"";
-    return [@"mp:external/https/" stringByAppendingString:[https substringFromIndex:8]];
+- (void)rememberClock {
+    SPTPlayerState *state = SGPlayerState();
+    NSInteger posMs = MAX(0, SGKaraokePositionMs());
+    long long nowMs = (long long)([NSDate date].timeIntervalSince1970 * 1000);
+    long long durMs = (long long)llround(MAX(0, state.duration) * 1000);
+    _stampStart = nowMs - posMs;
+    _stampEnd = durMs > posMs ? _stampStart + durMs : 0;
 }
 
 - (void)lookupCover {
@@ -116,7 +121,8 @@ static NSString *savedToken(void) {
             NSArray *rows = [obj isKindOfClass:NSDictionary.class] ? obj[@"data"] : nil;
             NSDictionary *row = [rows isKindOfClass:NSArray.class] ? rows.firstObject : nil;
             NSString *cover = [row[@"album"] isKindOfClass:NSDictionary.class] ? row[@"album"][@"cover_xl"] : nil;
-            if (![cover isKindOfClass:NSString.class] || ![cover hasPrefix:@"https://"]) return;
+            if (![cover isKindOfClass:NSString.class] || ![cover hasPrefix:@"https://"]) cover = [self_ artworkURL];
+            if (![cover hasPrefix:@"https://"]) return;
             self_->_cover = cover;
             self_->_force = YES;
             [self_ pushPresence];
@@ -132,23 +138,16 @@ static NSString *savedToken(void) {
     activity[@"details"] = hasTrack ? clip(state.track.trackTitle, 120) : @"Idle";
     NSString *artist = clip(state.track.artistName, 120);
     NSString *lyric = hasTrack ? [self lyricNow] : @"";
-    NSString *album = [state.track.metadata[@"album_title"] isKindOfClass:NSString.class] ? state.track.metadata[@"album_title"] : @"";
-    if (hasTrack && lyric.length) activity[@"state"] = clip([NSString stringWithFormat:@"%@ · %@", artist, lyric], 120);
-    else if (hasTrack && artist.length) activity[@"state"] = artist;
-    if (hasTrack) {
-        NSInteger posMs = MAX(0, SGKaraokePositionMs());
-        long long nowMs = (long long)([NSDate date].timeIntervalSince1970 * 1000);
-        long long durMs = (long long)llround(MAX(0, state.duration) * 1000);
-        if (durMs > posMs) activity[@"timestamps"] = @{@"start": @(nowMs - posMs), @"end": @(nowMs - posMs + durMs)};
-        else activity[@"timestamps"] = @{@"start": @(nowMs - posMs)};
-        NSString *image = _cover.length ? _cover : [self artworkURL];
-        NSString *external = [self discordImage:image];
-        if (external.length) {
-            NSMutableDictionary *assets = [@{@"large_image": external} mutableCopy];
-            if (album.length) assets[@"large_text"] = clip(album, 120);
-            else if (lyric.length) assets[@"large_text"] = lyric;
-            activity[@"assets"] = assets;
-        }
+    if (hasTrack && artist.length) activity[@"state"] = artist;
+    if (hasTrack && _stampStart > 0) {
+        if (_stampEnd > _stampStart) activity[@"timestamps"] = @{@"start": @(_stampStart), @"end": @(_stampEnd)};
+        else activity[@"timestamps"] = @{@"start": @(_stampStart)};
+    }
+    NSString *image = _cover.length ? _cover : [self artworkURL];
+    if (hasTrack && [image hasPrefix:@"https://"]) {
+        NSMutableDictionary *assets = [@{@"large_image": image} mutableCopy];
+        if (lyric.length) assets[@"large_text"] = lyric;
+        activity[@"assets"] = assets;
     }
     (void)playing;
     return @{@"since": NSNull.null, @"activities": @[activity], @"status": @"online", @"afk": @NO};
@@ -229,10 +228,21 @@ static NSString *savedToken(void) {
     if (![track isEqualToString:_track ?: @""]) {
         _track = track;
         _cover = @"";
+        _stampStart = 0;
+        [self rememberClock];
         _force = YES;
         [self lookupCover];
+    } else if (_stampStart == 0) {
+        [self rememberClock];
+        _force = YES;
+    } else {
+        long long expected = (long long)([NSDate date].timeIntervalSince1970 * 1000) - _stampStart;
+        NSInteger posMs = MAX(0, SGKaraokePositionMs());
+        if (llabs(expected - posMs) > 4000) {
+            [self rememberClock];
+            _force = YES;
+        }
     }
-    if (SGPlayerState().isPaused) _force = YES;
     _dirty = YES;
     [self pushPresence];
 }

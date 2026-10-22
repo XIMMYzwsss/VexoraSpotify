@@ -9,13 +9,7 @@ static const NSInteger kLyricsRadialGlowTagA = 88003;
 static const NSInteger kLyricsRadialGlowTagB = 88004;
 
 static UIView *lyricsShell(UIView *page) {
-    UIView *shell = page;
-    for (UIView *v = page; v && ![v isKindOfClass:UIWindow.class]
-            && ![NSStringFromClass(v.class) hasPrefix:@"UITransition"]; v = v.superview) {
-        shell = v;
-        v.layer.backgroundColor = NULL;
-    }
-    return shell;
+    return page;
 }
 
 static void hideSpotifyGlass(UIView *root, UIView *backdrop) {
@@ -102,6 +96,7 @@ static UIView *glowHost(NSInteger tag) {
 static void layoutLyricsBackdrop(UIView *page) {
     UIView *shell = lyricsShell(page);
     sgr_lyricsPageRoot = shell;
+    BOOL original = SGRLyricsFullscreenBackgroundNow() == SGRLyricsFullscreenBackgroundOriginal;
     BOOL coverMode = SGRLyricsFullscreenBackgroundNow() == SGRLyricsFullscreenBackgroundCover;
 
     UIView *backdrop = objc_getAssociatedObject(shell, &kBackdropKey);
@@ -127,6 +122,17 @@ static void layoutLyricsBackdrop(UIView *page) {
         host.frame = backdrop.bounds;
         host.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
         host.hidden = !coverMode;
+    }
+
+    backdrop.hidden = original;
+    if (original) {
+        shell.backgroundColor = UIColor.clearColor;
+        shell.opaque = NO;
+        page.backgroundColor = UIColor.clearColor;
+        page.opaque = NO;
+        UIVisualEffectView *glass = SGGlassFor(page, &kPageGlassKey);
+        glass.hidden = YES;
+        return;
     }
 
     shell.opaque = YES;
