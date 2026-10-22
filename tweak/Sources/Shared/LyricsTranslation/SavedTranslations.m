@@ -56,7 +56,7 @@ void SGLyricsSaveTranslation(NSString *track, NSString *language, NSArray<SGKara
     // One at a time, in the order asked: a song is saved after every batch, and an older write must not land last.
     static dispatch_queue_t writes;
     static dispatch_once_t once;
-    dispatch_once(&once, ^{ writes = dispatch_queue_create("taurus.translations", DISPATCH_QUEUE_SERIAL); });
+    dispatch_once(&once, ^{ writes = dispatch_queue_create("vexoraspotify.translations", DISPATCH_QUEUE_SERIAL); });
     dispatch_async(writes, ^{
         [NSFileManager.defaultManager createDirectoryAtURL:folder() withIntermediateDirectories:YES attributes:nil error:nil];
         [data writeToURL:fileFor(track, language) atomically:YES];
