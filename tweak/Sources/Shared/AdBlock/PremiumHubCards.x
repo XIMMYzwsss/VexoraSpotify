@@ -12,14 +12,18 @@ static BOOL premiumHubPage(UIViewController *vc) {
 
 static BOOL cardLooksEmpty(UIView *card) {
     if (card.hidden || card.alpha < 0.05) return NO;
+    if (objc_getAssociatedObject(card, &kPremiumFilledKey)) return NO;
     CGFloat h = card.bounds.size.height, w = card.bounds.size.width;
-    if (h < 72 || w < 180) return NO;
+    if (h < 56 || w < 160) return NO;
+    if (card.layer.cornerRadius < 8 && h < 100) return NO;
     __block BOOL hasArt = NO, hasBody = NO;
     SGForEachView(card, ^(UIView *v) {
-        if ([v isKindOfClass:UIImageView.class] && ((UIImageView *)v).image.size.width > 16) hasArt = YES;
+        if (v.tag == 88001) hasBody = YES;
+        if ([v isKindOfClass:UIImageView.class] && ((UIImageView *)v).image.size.width > 12) hasArt = YES;
         if ([v isKindOfClass:UILabel.class]) {
-            NSString *t = ((UILabel *)v).text;
-            if (t.length > 28 && ![t isEqualToString:@"Subscription"] && ![t hasPrefix:@"Snapshot"]) hasBody = YES;
+            NSString *t = ((UILabel *)v).text ?: ((UILabel *)v).attributedText.string;
+            if (t.length > 18 && ![t isEqualToString:@"Subscription"] && ![t hasPrefix:@"Snapshot"]
+                && ![t isEqualToString:@"Manage"] && ![t hasPrefix:@"1 Premium"]) hasBody = YES;
         }
     });
     return !hasArt && !hasBody;
@@ -27,6 +31,9 @@ static BOOL cardLooksEmpty(UIView *card) {
 
 static void fillPremiumCard(UIView *card, NSString *title) {
     if (objc_getAssociatedObject(card, &kPremiumFilledKey)) return;
+    for (UIView *sub in card.subviews) {
+        if (sub.tag == 88001) return;
+    }
     UILabel *body = [UILabel new];
     body.tag = 88001;
     body.numberOfLines = 0;
@@ -45,8 +52,10 @@ static void fillPremiumCard(UIView *card, NSString *title) {
 }
 
 static void fillPremiumHub(UIViewController *vc) {
-    if (!premiumHubPage(vc)) return;
     NSString *title = vc.navigationItem.title ?: @"";
+    BOOL hub = premiumHubPage(vc);
+    BOOL drawer = [NSStringFromClass(vc.class) containsString:@"SideDrawer"];
+    if (!hub && !drawer) return;
     SGForEachView(vc.view, ^(UIView *v) {
         if (!cardLooksEmpty(v)) return;
         fillPremiumCard(v, title);
