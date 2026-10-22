@@ -153,7 +153,7 @@ static NSArray<SGModSection *> *sections(SGVibrationsPreview *preview, void (^ex
     // Under In the Background while the install lacks the key iOS lists apps for Music Haptics by.
     SGModRow *unlisted = SGWarningRow(@"In the Background is missing from this install", @"Tap for why", ^{
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"In the Background is missing"
-            message:@"iOS plays Music Haptics only for apps that say they support it. Taurus's IPA build adds that support to Spotify; injecting the .deb by itself does not, so the vibrations stop when Spotify leaves the screen. Music Haptics above still works while Spotify is open. Build the IPA with Taurus to get both."
+            message:@"iOS plays Music Haptics only for apps that say they support it. VexoraSpotify's IPA build adds that support to Spotify; injecting the .deb by itself does not, so the vibrations stop when Spotify leaves the screen. Music Haptics above still works while Spotify is open. Build the IPA with VexoraSpotify to get both."
             preferredStyle:UIAlertControllerStyleAlert];
         alert.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
         [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
