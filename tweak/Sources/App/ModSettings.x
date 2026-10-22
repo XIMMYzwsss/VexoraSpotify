@@ -56,11 +56,11 @@ static UIColor *SGRainbowTextColor(CGFloat width, CGFloat height, double phase) 
     return [UIColor colorWithPatternImage:image];
 }
 
-@interface SGTaurusSettingsPage : SGModPage
+@interface SGVexoraSpotifySettingsPage : SGModPage
 - (instancetype)initWithSections:(NSArray<SGModSection *> *)sections;
 @end
 
-@implementation SGTaurusSettingsPage {
+@implementation SGVexoraSpotifySettingsPage {
     UIView *_masthead;
     UILabel *_mastheadTitle, *_mastheadByline, *_compactTitle;
     BOOL _compactTitleVisible;
@@ -70,7 +70,7 @@ static UIColor *SGRainbowTextColor(CGFloat width, CGFloat height, double phase) 
 }
 
 - (instancetype)initWithSections:(NSArray<SGModSection *> *)sections {
-    return [super initWithTitle:@"taurus" intro:nil sections:sections footer:@"Contributor: @Pulse-Ice (EeveeImmersive)"];
+    return [super initWithTitle:@"VexoraSpotify" intro:nil sections:sections footer:@"Contributor: @Pulse-Ice (EeveeImmersive)"];
 }
 
 - (void)viewDidLoad {
@@ -79,7 +79,7 @@ static UIColor *SGRainbowTextColor(CGFloat width, CGFloat height, double phase) 
     _masthead.backgroundColor = SGPageBackground();
     _masthead.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     _mastheadTitle = [UILabel new];
-    _mastheadTitle.text = @"taurus";
+    _mastheadTitle.text = @"VexoraSpotify";
     _mastheadTitle.font = [UIFont systemFontOfSize:36 weight:UIFontWeightBold];
     _mastheadTitle.textAlignment = NSTextAlignmentRight;
     [_mastheadTitle sizeToFit];
@@ -93,7 +93,7 @@ static UIColor *SGRainbowTextColor(CGFloat width, CGFloat height, double phase) 
     self.tableView.tableHeaderView = _masthead;
 
     _compactTitle = [UILabel new];
-    _compactTitle.text = @"taurus";
+    _compactTitle.text = @"VexoraSpotify";
     _compactTitle.font = [UIFont systemFontOfSize:17 weight:UIFontWeightSemibold];
     [_compactTitle sizeToFit];
     _compactTitle.textColor = SGRainbowTextColor(_compactTitle.bounds.size.width, _compactTitle.bounds.size.height, 0);
@@ -205,7 +205,7 @@ static UIViewController *modSettingsPage(void) {
     SGModRow *signing = SGSigningWarningRow();
     if (signing) signing.visible = ^BOOL { return !SGFlag(SGKeyHideSigningWarning, NO); };
     NSMutableArray<SGModRow *> *topRows = [NSMutableArray array];
-    SGModRow *update = SGActionRow(@"Taurus update available", @"Tap to view the latest release", ^{
+    SGModRow *update = SGActionRow(@"VexoraSpotify update available", @"Tap to view the latest release", ^{
         NSString *url = SGUpdateNewestRelease().url;
         if (url.length) SGOpenURL(url);
     });
@@ -268,7 +268,7 @@ static UIViewController *modSettingsPage(void) {
             mod,
         ]),
     ]];
-    return [[SGTaurusSettingsPage alloc] initWithSections:sections];
+    return [[SGVexoraSpotifySettingsPage alloc] initWithSections:sections];
 }
 
 #pragma mark - row in the settings list
@@ -286,7 +286,7 @@ static UIViewController *modSettingsPage(void) {
     if (!(self = [super initWithFrame:frame])) return nil;
     _icon = SGSymbolView(@"slider.horizontal.3", 20, UIImageSymbolWeightRegular, 24);
     _title = [UILabel new];
-    _title.text = @"taurus settings";
+    _title.text = @"VexoraSpotify settings";
     _title.textColor = UIColor.whiteColor;
     _chevron = SGSymbolView(@"chevron.right", 11, UIImageSymbolWeightSemibold, 12);
     for (UIView *v in @[_icon, _title, _chevron]) [self addSubview:v];
