@@ -19,6 +19,7 @@
 #import "Shared/Player/PlayerEvents.h"
 #import "Shared/Haptics/Haptics.h"
 #import "Redesigned/Kit/SGRTokens.h"
+#import "Redesigned/Kit/SGRBridges.h"
 #import <NaturalLanguage/NaturalLanguage.h>
 
 static const CGFloat kMargin = 24, kRowTighten = 2;
@@ -30,21 +31,6 @@ static CGFloat dimAlpha(void) {
     return sg_vexoraGlow ? 0.42 : kDimAlpha;
 }
 
-static void applyVexoraTextShadow(NSMutableDictionary *attrs) {
-    NSShadow *shadow = [NSShadow new];
-    shadow.shadowColor = [UIColor colorWithWhite:1 alpha:0.72];
-    shadow.shadowBlurRadius = 10;
-    shadow.shadowOffset = CGSizeZero;
-    attrs[NSShadowAttributeName] = shadow;
-}
-
-static void applyVexoraLayerGlow(CALayer *layer) {
-    layer.shadowColor = UIColor.whiteColor.CGColor;
-    layer.shadowOffset = CGSizeZero;
-    layer.shadowRadius = 22;
-    layer.shadowOpacity = 0.38;
-    layer.masksToBounds = NO;
-}
 // The animation chosen on the Lyrics page (SGRLyricsAnimation), read for every view when the look changes.
 static CGFloat sgFillEdge = 22, sgLift = 2.5, sgDimScale = 0.97, sgMove = 0.7, sgDamping = 0.86, sgStagger = 0.04;
 static NSTimeInterval sgWholeFade = 0.35;
@@ -155,15 +141,44 @@ static UILabel *wordLabel(NSString *text, UIFont *font, UIColor *color, CGRect f
         attrs[NSStrokeColorAttributeName] = UIColor.blackColor;
         attrs[NSStrokeWidthAttributeName] = @(-2.0);
     }
-    if (vexoraLit) applyVexoraTextShadow(attrs);
+    (void)vexoraLit;
     if (rightToLeft) {
         NSMutableParagraphStyle *paragraph = [NSMutableParagraphStyle new];
         paragraph.baseWritingDirection = NSWritingDirectionRightToLeft;
         attrs[NSParagraphStyleAttributeName] = paragraph;
     }
     label.attributedText = [[NSAttributedString alloc] initWithString:text attributes:attrs];
-    if (vexoraLit) applyVexoraLayerGlow(label.layer);
     return label;
+}
+
+// The desktop Vexora lyrics glow: three white blurs (8 / 20 / 36 pt) under a sharp white line.
+static UIView *vexoraHalo(NSString *text, UIFont *font, CGRect bounds, BOOL rightToLeft) {
+    UIView *box = [[UIView alloc] initWithFrame:bounds];
+    box.userInteractionEnabled = NO;
+    box.clipsToBounds = NO;
+    const CGFloat blurs[] = {36, 20, 8};
+    const CGFloat alphas[] = {0.22, 0.40, 0.70};
+    for (int i = 0; i < 3; i++) {
+        NSShadow *shadow = [NSShadow new];
+        shadow.shadowColor = [UIColor colorWithWhite:1 alpha:alphas[i]];
+        shadow.shadowBlurRadius = blurs[i];
+        shadow.shadowOffset = CGSizeZero;
+        NSMutableDictionary *attrs = [@{
+            NSFontAttributeName: font,
+            NSForegroundColorAttributeName: UIColor.clearColor,
+            NSShadowAttributeName: shadow
+        } mutableCopy];
+        if (rightToLeft) {
+            NSMutableParagraphStyle *paragraph = [NSMutableParagraphStyle new];
+            paragraph.baseWritingDirection = NSWritingDirectionRightToLeft;
+            attrs[NSParagraphStyleAttributeName] = paragraph;
+        }
+        UILabel *glow = [[UILabel alloc] initWithFrame:bounds];
+        glow.attributedText = [[NSAttributedString alloc] initWithString:text attributes:attrs];
+        glow.clipsToBounds = NO;
+        [box addSubview:glow];
+    }
+    return box;
 }
 
 // The lit word as one label per letter, so each can rise and glow on its own as the sweep reaches it.
@@ -229,6 +244,13 @@ static UIView *letterHost(NSString *text, UIFont *font, UIColor *litColor, CGRec
     // mask leaves nothing of it, and a song has hundreds of words waiting their turn.
     _lit.hidden = YES;
     [self addSubview:_lit];
+    if (sg_vexoraGlow && !waves) {
+        UIView *halo = vexoraHalo(word.text, font, _lit.bounds, rightToLeft);
+        halo.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        [_lit insertSubview:halo atIndex:0];
+        _lit.clipsToBounds = NO;
+        self.clipsToBounds = NO;
+    }
 
     CGFloat width = self.bounds.size.width + sgFillEdge;
     _fill = [CAGradientLayer layer];
@@ -872,11 +894,7 @@ static const NSUInteger kLinesPerFrame = 4;
             [word.lit.layer removeAllAnimations];
             word.lit.alpha = 1;
             word.lit.hidden = NO;
-            if (sg_vexoraGlow) {
-                applyVexoraLayerGlow(word.lit.layer);
-                word.lit.layer.shadowOpacity = 1;
-                word.lit.layer.shadowRadius = 26;
-            }
+            if (sg_vexoraGlow) word.lit.layer.shadowOpacity = 0;
             [word fillTo:word.whole ? CGFLOAT_MAX : -CGFLOAT_MAX];
             [word settle];
             if (word.whole) [whole addObject:word];
@@ -1474,8 +1492,57 @@ typedef struct {
     [CATransaction commit];
 }
 
+- (void)layoutFullscreenBackdrop {
+    static const NSInteger kTag = 88005;
+    BOOL cover = SGRLyricsFullscreenBackgroundNow() == SGRLyricsFullscreenBackgroundCover;
+    UIView *plate = [self viewWithTag:kTag];
+    if (!plate) {
+        plate = [UIView new];
+        plate.tag = kTag;
+        plate.userInteractionEnabled = NO;
+        plate.backgroundColor = UIColor.blackColor;
+        plate.opaque = YES;
+        [self insertSubview:plate atIndex:0];
+    }
+    plate.frame = self.bounds;
+    plate.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [self sendSubviewToBack:plate];
+    self.backgroundColor = UIColor.blackColor;
+    self.opaque = YES;
+    if (!cover) {
+        plate.layer.sublayers = nil;
+        return;
+    }
+    if (plate.layer.sublayers.count == 2 && CGRectEqualToRect(plate.layer.sublayers.firstObject.frame, plate.bounds)) return;
+    plate.layer.sublayers = nil;
+    UIColor *tint = [UIColor colorWithRed:30 / 255.0 green:215 / 255.0 blue:96 / 255.0 alpha:1];
+    UIImage *art = SGRNowPlayingArtwork(NULL, NULL);
+    if (art.CGImage) {
+        uint8_t px[4] = {30, 215, 96, 255};
+        CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+        CGContextRef ctx = CGBitmapContextCreate(px, 1, 1, 8, 4, space, (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
+        CGColorSpaceRelease(space);
+        if (ctx) {
+            CGContextDrawImage(ctx, CGRectMake(0, 0, 1, 1), art.CGImage);
+            CGContextRelease(ctx);
+            tint = [UIColor colorWithRed:px[0] / 255.0 green:px[1] / 255.0 blue:px[2] / 255.0 alpha:1];
+        }
+    }
+    for (int i = 0; i < 2; i++) {
+        CAGradientLayer *rad = [CAGradientLayer layer];
+        rad.type = kCAGradientLayerRadial;
+        rad.colors = @[(id)[tint colorWithAlphaComponent:0.42].CGColor, (id)[tint colorWithAlphaComponent:0].CGColor];
+        rad.locations = @[@0, @0.6];
+        rad.startPoint = i == 0 ? CGPointMake(0.16, 0.08) : CGPointMake(0.92, 0.92);
+        rad.endPoint = i == 0 ? CGPointMake(0.75, 0.6) : CGPointMake(0.35, 0.35);
+        rad.frame = plate.bounds;
+        [plate.layer addSublayer:rad];
+    }
+}
+
 - (void)layoutSubviews {
     [super layoutSubviews];
+    if (!_compact) [self layoutFullscreenBackdrop];
     [self alignFade];
     _scroll.contentSize = self.bounds.size;
     [_credit sizeToFit];

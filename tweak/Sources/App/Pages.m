@@ -26,6 +26,7 @@
 #import "Redesigned/NowPlayingBar/NowPlayingBar.h"
 #import "Redesigned/Player/Player.h"
 #import "Redesigned/Kit/SGRAccent.h"
+#import "Shared/Discord/VexoraRPC.h"
 
 NSString *const SGRedesignedUIInfo = @"VexoraSpotify's redesigned look, leaning towards Apple Music's style. It is not compatible with the legacy look's settings.\n\nThe legacy look gives you more freedom, yet still looks like Spotify.";
 
@@ -101,6 +102,7 @@ UIViewController *SGLyricsSettingsPage(void) {
             SGLyricsWordTimingRow(), SGLyricsRomanisedRow(), SGLyricsDelayRow(),
             SGRLyricsTextSizesRow(), SGLyricsTranslationLanguageRow(), SGLyricsMeaningsRow(), SGLyricsMeaningMarkersRow()])];
         [sections addObject:SGSection(@"Translation", @[SGTranslateEverySongRow(), SGGeminiKeyRow(), SGSavedTranslationsRow()])];
+        [sections addObject:SGSection(@"Discord", @[SGVexoraDiscordRow()])];
     }
     [sections addObject:SGSection(nil, more)];
     // The redesign's page leads with a live preview of the lyrics, a glass pill to search the song it plays,

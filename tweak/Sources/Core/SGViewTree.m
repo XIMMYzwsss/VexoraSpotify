@@ -35,7 +35,7 @@ BOOL SGHasClass(UIView *root, NSString *marker) {
 }
 
 BOOL SGKeepsColor(UIView *view) {
-    if (view.tag == 88002 || view.tag == 88003 || view.tag == 88004) return YES;   // LyricsPage.x backdrop
+    if (view.tag == 88002 || view.tag == 88003 || view.tag == 88004 || view.tag == 88005) return YES;   // lyrics backdrop
     return [view isKindOfClass:UIImageView.class] || [view isKindOfClass:UILabel.class] || view.bounds.size.height <= 4;
 }
 
