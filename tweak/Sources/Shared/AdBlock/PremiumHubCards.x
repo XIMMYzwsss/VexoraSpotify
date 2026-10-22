@@ -53,9 +53,7 @@ static void fillPremiumCard(UIView *card, NSString *title) {
 
 static void fillPremiumHub(UIViewController *vc) {
     NSString *title = vc.navigationItem.title ?: @"";
-    BOOL hub = premiumHubPage(vc);
-    BOOL drawer = [NSStringFromClass(vc.class) containsString:@"SideDrawer"];
-    if (!hub && !drawer) return;
+    if (!premiumHubPage(vc)) return;
     SGForEachView(vc.view, ^(UIView *v) {
         if (!cardLooksEmpty(v)) return;
         fillPremiumCard(v, title);

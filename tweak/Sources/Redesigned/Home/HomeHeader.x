@@ -27,8 +27,9 @@
 // Tries at finding the tab's name before settling for the English one: a miss walks the window.
 static const NSUInteger kTitleTries = 8;
 
-static char kTitleKey, kTabKey;
+static char kTitleKey, kPatchKey, kTabKey;
 static __weak UILabel *sg_title;
+static __weak UILabel *sg_patch;
 static __weak UIView *sg_face;
 static UIButton *sg_settingsButton;
 static UIVisualEffectView *sg_bar;
@@ -111,6 +112,23 @@ static UILabel *titleIn(UIView *header) {
     return title;
 }
 
+static UILabel *patchIn(UIView *header) {
+    UILabel *patch = objc_getAssociatedObject(header, &kPatchKey);
+    if (!patch) {
+        patch = [UILabel new];
+        patch.text = @"Patched by Vexora";
+        patch.font = [UIFont systemFontOfSize:13 weight:UIFontWeightBold];
+        patch.textColor = [UIColor colorWithRed:0.91 green:0.08 blue:0.16 alpha:1];
+        patch.adjustsFontSizeToFitWidth = YES;
+        patch.minimumScaleFactor = 0.75;
+        patch.userInteractionEnabled = NO;
+        patch.accessibilityElementsHidden = YES;
+        objc_setAssociatedObject(header, &kPatchKey, patch, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    if (patch.superview != header) [header addSubview:patch];
+    return patch;
+}
+
 // The header's views, found once: the page lays out again as it appears, and the walk names classes.
 static __weak UIView *sg_header;
 static __weak UIStackView *sg_stack;
@@ -160,6 +178,7 @@ static void applyScroll(UIScrollView *list) {
     sg_scrollProgress = p;
     if (sg_bar && sg_bar.alpha != p) sg_bar.alpha = p;
     if (sg_title && sg_title.alpha != 1 - p) sg_title.alpha = 1 - p;
+    if (sg_patch && sg_patch.alpha != 1 - p) sg_patch.alpha = 1 - p;
     if (sg_face) {
         BOOL visible = SGFlag(SGRKeyNavbarProfilePhoto, YES);
         CGFloat alpha = visible ? 1 - p : 0;
@@ -199,6 +218,7 @@ static void layoutHeader(UIViewController *page) {
     [stack layoutIfNeeded];
 
     UILabel *title = titleIn(header);
+    UILabel *patch = patchIn(header);
     NSString *text = tabName(header.window);
     if (![title.text isEqualToString:text]) {
         title.text = text;
@@ -214,10 +234,22 @@ static void layoutHeader(UIViewController *page) {
     settings.frame = CGRectMake(settingsX, round(CGRectGetMidY(stack.frame) - settingsSide / 2), settingsSide, settingsSide);
     trailing = settingsX - 8;
     CGFloat height = ceil(font.lineHeight);
-    CGRect frame = CGRectMake(SGRSideMargin, round(CGRectGetMidY(stack.frame) - height / 2), MAX(0, trailing - SGRSideMargin), height);
-    if (!CGRectEqualToRect(title.frame, frame)) title.frame = frame;
+    CGFloat midY = round(CGRectGetMidY(stack.frame));
+    [title sizeToFit];
+    [patch sizeToFit];
+    CGFloat gap = 10;
+    CGFloat titleW = MIN(title.bounds.size.width, MAX(0, trailing - SGRSideMargin - patch.bounds.size.width - gap));
+    CGFloat rowW = titleW + gap + patch.bounds.size.width;
+    CGFloat startX = SGRSideMargin + MAX(0, (trailing - SGRSideMargin - rowW) / 2);
+    CGRect titleFrame = CGRectMake(startX, midY - height / 2, titleW, height);
+    if (!CGRectEqualToRect(title.frame, titleFrame)) title.frame = titleFrame;
+    CGFloat patchH = patch.bounds.size.height;
+    CGRect patchFrame = CGRectMake(CGRectGetMaxX(titleFrame) + gap, midY - patchH / 2,
+                                   MIN(patch.bounds.size.width, trailing - CGRectGetMaxX(titleFrame) - gap), patchH);
+    if (!CGRectEqualToRect(patch.frame, patchFrame)) patch.frame = patchFrame;
 
     sg_title = title;
+    sg_patch = patch;
     sg_face = face;
     UIView *wrapper = header.superview;
     if (wrapper && SGRHomeGlassStyle()) {
@@ -236,7 +268,7 @@ static void layoutHeader(UIViewController *page) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         SGLog(@"redesign home: header %@, avatar %@ in the stack %@, title %@, scrim %@", NSStringFromCGRect(header.frame),
-              face ? NSStringFromCGRect(face.frame) : @"not found", NSStringFromCGRect(stack.frame), NSStringFromCGRect(frame),
+              face ? NSStringFromCGRect(face.frame) : @"not found", NSStringFromCGRect(stack.frame), NSStringFromCGRect(titleFrame),
               sg_scrim ? @"found" : @"not found");
     });
 }
