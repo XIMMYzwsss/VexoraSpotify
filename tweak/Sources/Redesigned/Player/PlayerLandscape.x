@@ -409,21 +409,27 @@ static void requestOrientations(UIWindowScene *scene, UIInterfaceOrientationMask
 }
 
 // A landscape window whose root view is still the upright size draws that layout on half the screen.
+// The root view is not a direct child of the window, so the box between them has to grow as well.
 static BOOL sg_repairingRoot;
 
-static void repairRoot(UIWindow *window) {
+static void fillWindow(UIWindow *window) {
     if (sg_repairingRoot || !window || window == sg_window || window.hidden) return;
+    if (window.windowLevel != UIWindowLevelNormal) return;
     UIView *root = window.rootViewController.view;
-    if (!root || root.superview != window) return;
-    CGSize windowSize = window.bounds.size, rootSize = root.bounds.size;
-    if (windowSize.width < 1 || windowSize.height < 1) return;
-    BOOL windowLandscape = windowSize.width > windowSize.height + 1;
-    BOOL rootLandscape = rootSize.width > rootSize.height + 1;
-    if (windowLandscape == rootLandscape
-        && rootSize.width > windowSize.width * 0.75
-        && rootSize.height > windowSize.height * 0.75) return;
+    if (!root) return;
     sg_repairingRoot = YES;
-    root.frame = window.bounds;
+    NSMutableArray<UIView *> *chain = [NSMutableArray array];
+    for (UIView *view = root; view && view != window; view = view.superview) [chain addObject:view];
+    for (UIView *view in chain.reverseObjectEnumerator) {
+        UIView *host = view.superview;
+        if (!host) continue;
+        CGRect target = host.bounds;
+        BOOL hostLandscape = target.size.width > target.size.height + 1;
+        BOOL viewLandscape = view.bounds.size.width > view.bounds.size.height + 1;
+        BOOL tooSmall = view.bounds.size.width < target.size.width * 0.8 || view.bounds.size.height < target.size.height * 0.8;
+        if (hostLandscape != viewLandscape || tooSmall || fabs(view.frame.origin.x) > 1 || fabs(view.frame.origin.y) > 1)
+            view.frame = target;
+    }
     sg_repairingRoot = NO;
 }
 
@@ -470,17 +476,29 @@ void SGRPlayerShowLandscape(BOOL show) {
     }
 }
 
-static void orientationChanged(void) {
+static void alignScene(UIWindowScene *scene) {
+    if (![scene isKindOfClass:UIWindowScene.class]) return;
     UIDeviceOrientation orientation = UIDevice.currentDevice.orientation;
     UIInterfaceOrientationMask mask = maskForDevice(orientation);
+    UIInterfaceOrientation wanted = UIInterfaceOrientationUnknown;
+    if (orientation == UIDeviceOrientationLandscapeLeft) wanted = UIInterfaceOrientationLandscapeRight;
+    else if (orientation == UIDeviceOrientationLandscapeRight) wanted = UIInterfaceOrientationLandscapeLeft;
+    else if (orientation == UIDeviceOrientationPortrait) wanted = UIInterfaceOrientationPortrait;
+    // Let a turn already in progress finish. A second geometry update while it runs is what leaves
+    // the upright layout covering half the screen.
+    if (mask && scene.interfaceOrientation != wanted && !(sg_window && wanted == UIInterfaceOrientationPortrait))
+        requestOrientations(scene, mask);
+    for (UIWindow *window in scene.windows) fillWindow(window);
+}
+
+static void orientationChanged(void) {
+    UIDeviceOrientation orientation = UIDevice.currentDevice.orientation;
     UIWindowScene *scene = (UIWindowScene *)UIApplication.sharedApplication.connectedScenes.anyObject;
-    if (mask && [scene isKindOfClass:UIWindowScene.class]) {
-        UIInterfaceOrientation wanted = UIInterfaceOrientationUnknown;
-        if (orientation == UIDeviceOrientationLandscapeLeft) wanted = UIInterfaceOrientationLandscapeRight;
-        else if (orientation == UIDeviceOrientationLandscapeRight) wanted = UIInterfaceOrientationLandscapeLeft;
-        else if (orientation == UIDeviceOrientationPortrait) wanted = UIInterfaceOrientationPortrait;
-        if (scene.interfaceOrientation != wanted) requestOrientations(scene, mask);
-        for (UIWindow *window in scene.windows) repairRoot(window);
+    if ([scene isKindOfClass:UIWindowScene.class]) {
+        __weak UIWindowScene *weakScene = scene;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.45 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            alignScene(weakScene);
+        });
     }
     if (UIDeviceOrientationIsLandscape(orientation)) {
         if (!sg_shut && SGEnabled(SGRKeyLyricsLandscape) && SGRPlayerLyricsOpen()) SGRPlayerShowLandscape(YES);
@@ -512,12 +530,20 @@ void SGRPlayerLyricsOrientationChanged(void) {
     return mask | UIInterfaceOrientationMaskLandscapeLeft | UIInterfaceOrientationMaskLandscapeRight;
 }
 - (BOOL)shouldAutorotate { return YES; }
+- (void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
+    %orig;
+    UIWindow *window = ((UIViewController *)self).view.window;
+    if (!window || window.rootViewController != (UIViewController *)self) return;
+    [coordinator animateAlongsideTransition:nil completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
+        fillWindow(window);
+    }];
+}
 %end
 
 %hook UIWindow
 - (void)layoutSubviews {
     %orig;
-    repairRoot((UIWindow *)self);
+    fillWindow((UIWindow *)self);
 }
 %end
 
