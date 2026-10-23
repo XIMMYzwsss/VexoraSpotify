@@ -445,95 +445,6 @@ void SGRDockNowPlayingCard(BOOL docked, CGRect row, UIView *host, BOOL animated)
     applyDock(animated && !UIAccessibilityIsReduceMotionEnabled());
 }
 
-// Landscape puts the notch on one side and the home-indicator corner on the other. The bar is laid out
-// for an upright phone, so it stays full width. Moving only the box left the cover and the pause
-// button at that old width, which ran off the opposite edge. The box and everything in it share one
-// shorter, narrower frame that stays inside both insets.
-static const CGFloat kLandscapeBarMargin = 8;
-static int sg_fittingBar;
-
-static void compressToSize(UIView *view, CGSize oldSize) {
-    CGSize newSize = view.bounds.size;
-    if (oldSize.width < 1 || oldSize.height < 1 || newSize.width < 1 || newSize.height < 1) return;
-    CGFloat sx = newSize.width / oldSize.width;
-    CGFloat sy = newSize.height / oldSize.height;
-    if (fabs(sx - 1) < 0.01 && fabs(sy - 1) < 0.01) return;
-    for (UIView *sub in view.subviews) {
-        if ([sub isKindOfClass:UIVisualEffectView.class]) continue;
-        CGRect frame = sub.frame;
-        CGSize subOld = frame.size;
-        frame.origin.x *= sx;
-        frame.origin.y *= sy;
-        frame.size.width *= sx;
-        frame.size.height *= sy;
-        if (CGRectGetMaxX(frame) > newSize.width) frame.size.width = MAX(0, newSize.width - frame.origin.x);
-        if (CGRectGetMaxY(frame) > newSize.height) frame.size.height = MAX(0, newSize.height - frame.origin.y);
-        sub.frame = frame;
-        if (subOld.width > oldSize.width * 0.6) compressToSize(sub, subOld);
-    }
-}
-
-static void fitLandscapeNowPlaying(UIView *view) {
-    if (sg_fittingBar || !view) return;
-    UIWindow *window = view.window;
-    UIView *host = view.superview;
-    if (!window || !host) return;
-    BOOL landscape = window.bounds.size.width > window.bounds.size.height + 1;
-    if (!landscape) {
-        if (view.clipsToBounds) view.clipsToBounds = NO;
-        return;
-    }
-
-    UIEdgeInsets safe = window.safeAreaInsets;
-    CGRect hostInWindow = [host convertRect:host.bounds toView:window];
-    CGRect inWindow = [host convertRect:view.frame toView:window];
-    CGFloat minX = MAX(CGRectGetMinX(hostInWindow), safe.left + kLandscapeBarMargin);
-    CGFloat maxX = MIN(CGRectGetMaxX(hostInWindow), CGRectGetWidth(window.bounds) - safe.right - kLandscapeBarMargin);
-    if (maxX - minX < 160 || inWindow.size.height < 36) return;
-
-    CGFloat height = inWindow.size.height;
-    if (height > 58) height = MAX(56, round(height * 0.86));
-    CGRect fitted = CGRectMake(minX, CGRectGetMaxY(inWindow) - height, maxX - minX, height);
-    fitted = CGRectIntersection(fitted, CGRectInset(window.bounds, 0, 0));
-    if (CGRectIsNull(fitted) || fitted.size.width < 160) return;
-    CGRect fittedInHost = [window convertRect:fitted toView:host];
-    fittedInHost = CGRectIntersection(fittedInHost, host.bounds);
-    if (CGRectIsNull(fittedInHost) || fittedInHost.size.width < 160) return;
-    BOOL same = fabs(CGRectGetMinX(fittedInHost) - CGRectGetMinX(view.frame)) < 0.5
-        && fabs(CGRectGetWidth(fittedInHost) - CGRectGetWidth(view.frame)) < 0.5
-        && fabs(CGRectGetHeight(fittedInHost) - CGRectGetHeight(view.frame)) < 0.5
-        && fabs(CGRectGetMinY(fittedInHost) - CGRectGetMinY(view.frame)) < 0.5;
-    BOOL overflows = NO;
-    if (same) {
-        for (UIView *sub in view.subviews) {
-            if ([sub isKindOfClass:UIVisualEffectView.class]) continue;
-            if (sub.frame.origin.x < -1 || CGRectGetMaxX(sub.frame) > view.bounds.size.width + 1) overflows = YES;
-        }
-        if (!overflows) {
-            view.clipsToBounds = YES;
-            return;
-        }
-    }
-
-    NSMutableArray<UIView *> *rows = [NSMutableArray array];
-    NSMutableArray<NSValue *> *oldSizes = [NSMutableArray array];
-    for (UIView *sub in view.subviews) {
-        if ([sub isKindOfClass:UIVisualEffectView.class]) continue;
-        [rows addObject:sub];
-        [oldSizes addObject:[NSValue valueWithCGSize:sub.bounds.size]];
-    }
-    sg_fittingBar++;
-    view.frame = fittedInHost;
-    view.clipsToBounds = YES;
-    for (NSUInteger i = 0; i < rows.count; i++) {
-        UIView *sub = rows[i];
-        CGSize oldSize = oldSizes[i].CGSizeValue;
-        sub.frame = view.bounds;
-        compressToSize(sub, oldSize);
-    }
-    sg_fittingBar--;
-}
-
 static void styleNowPlayingBar(UIViewController *container) {
     UIViewController *barVC = container.childViewControllers.firstObject;
     UIView *bar = barVC.viewIfLoaded ?: container.view;
@@ -579,22 +490,16 @@ static void styleNowPlayingBar(UIViewController *container) {
 %hook _TtC18NowPlaying_BarImpl36NowPlayingBarContainerViewController
 - (void)viewDidLayoutSubviews {
     %orig;
-    if (sg_fittingBar) return;
-    UIViewController *container = (UIViewController *)self;
-    fitLandscapeNowPlaying(container.view);
-    styleNowPlayingBar(container);
+    styleNowPlayingBar((UIViewController *)self);
 }
 %end
 
 %hook _TtC18NowPlaying_BarImpl27NowPlayingBarViewController
 - (void)viewDidLayoutSubviews {
     %orig;
-    if (sg_fittingBar) return;
     UIViewController *parent = ((UIViewController *)self).parentViewController;
-    if ([NSStringFromClass(parent.class) containsString:@"NowPlayingBarContainer"]) {
-        fitLandscapeNowPlaying(parent.view);
+    if ([NSStringFromClass(parent.class) containsString:@"NowPlayingBarContainer"])
         styleNowPlayingBar(parent);
-    }
 }
 %end
 

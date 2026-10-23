@@ -27,11 +27,9 @@ On iOS 26 there is no theme picker. Hold Home on the tab bar to open Mod Setting
 
 ## What it does
 
-The whole app follows the phone, so Home, the player, library, and settings can sit sideways.
+Lyrics are their own page. The app stays upright.
 
-Lyrics are their own page. With **Landscape lyrics** on, turning the phone while they are open replaces that page with the sideways lyrics screen: lines beside the controls. Closing it leaves the app free to stay sideways.
-
-The lyrics background fills the screen in portrait and landscape:
+The lyrics background fills that page:
 
 - **Solid color**, default black, with its own picker
 - **Cover glow**, colour taken from the album art
