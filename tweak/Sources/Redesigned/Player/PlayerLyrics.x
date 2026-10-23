@@ -679,13 +679,13 @@ static void setOpen(BOOL open, BOOL animated) {
                          animations:show completion:nil];
     }
     if (open) restartRest();
-    SGRPlayerMotionCoverLaidOut();
     else {
         [sg_rest invalidate];
         sg_rest = nil;
         // The landscape screen shows these lines, so it goes with them (a track without lyrics came on).
         SGRPlayerShowLandscape(NO);
     }
+    SGRPlayerMotionCoverLaidOut();
     SGLog(@"redesign player: lyrics %@, thumbnail %.0fx%.0f at %.0f,%.0f, title row up %.0f and right %.0f, lines %.0fx%.0f",
           open ? @"up" : @"away", l.thumb.size.width, l.thumb.size.height, l.thumb.origin.x, l.thumb.origin.y,
           -l.lift, l.shift, l.stage.size.width, l.stage.size.height);
