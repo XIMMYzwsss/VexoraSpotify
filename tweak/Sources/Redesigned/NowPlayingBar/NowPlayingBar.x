@@ -445,46 +445,60 @@ void SGRDockNowPlayingCard(BOOL docked, CGRect row, UIView *host, BOOL animated)
     applyDock(animated && !UIAccessibilityIsReduceMotionEnabled());
 }
 
-// Landscape leaves the bar full width, so the notch's side inset sits on the cover and the pause button.
-// Scale it down a little and seat it inside that inset, keeping its bottom edge on the tab bar. The
-// transform is only visual: Spotify keeps laying the bar out at full width underneath.
-static BOOL sg_fittingBar;
+// Landscape puts the notch on one side and the home-indicator corner on the other. The bar is laid out
+// for an upright phone, so it stays full width and runs under both. Pull it inside those insets and
+// shorten it a little, keeping its bottom where the tab bar expects it. The parent's constraints put
+// the full width back on the next pass, so this runs after that and places the bar inside the new box.
+static const CGFloat kLandscapeBarMargin = 8;
+static int sg_fittingBar;
 
 static void fitLandscapeNowPlaying(UIView *view) {
     if (sg_fittingBar || !view) return;
     UIWindow *window = view.window;
-    BOOL landscape = window && window.bounds.size.width > window.bounds.size.height + 1;
-    if (!landscape) {
-        if (!CGAffineTransformIsIdentity(view.transform)) {
-            sg_fittingBar = YES;
-            view.transform = CGAffineTransformIdentity;
-            sg_fittingBar = NO;
-        }
-        return;
-    }
-    sg_fittingBar = YES;
-    view.transform = CGAffineTransformIdentity;
-    CGRect placed = [view convertRect:view.bounds toView:nil];
+    UIView *host = view.superview;
+    if (!window || !host) return;
+    if (window.bounds.size.width <= window.bounds.size.height + 1) return;
+
     UIEdgeInsets safe = window.safeAreaInsets;
-    CGFloat pad = 6;
-    CGFloat minX = safe.left + pad;
-    CGFloat maxX = window.bounds.size.width - safe.right - pad;
-    CGFloat avail = maxX - minX;
-    if (avail < 80 || placed.size.width < 1 || placed.size.height < 1) {
-        sg_fittingBar = NO;
-        return;
+    CGRect inWindow = [host convertRect:view.frame toView:window];
+    CGFloat minX = safe.left + kLandscapeBarMargin;
+    CGFloat maxX = CGRectGetWidth(window.bounds) - safe.right - kLandscapeBarMargin;
+    if (maxX - minX < 160 || inWindow.size.height < 36) return;
+
+    CGFloat height = inWindow.size.height;
+    if (height > 58) height = MAX(56, round(height * 0.86));
+    CGRect fitted = CGRectMake(minX, CGRectGetMaxY(inWindow) - height, maxX - minX, height);
+    CGRect fittedInHost = [window convertRect:fitted toView:host];
+    if (fabs(CGRectGetMinX(fittedInHost) - CGRectGetMinX(view.frame)) < 0.5
+        && fabs(CGRectGetWidth(fittedInHost) - CGRectGetWidth(view.frame)) < 0.5
+        && fabs(CGRectGetHeight(fittedInHost) - CGRectGetHeight(view.frame)) < 0.5
+        && fabs(CGRectGetMinY(fittedInHost) - CGRectGetMinY(view.frame)) < 0.5) return;
+
+    CGRect oldBounds = view.bounds;
+    NSMutableArray<NSValue *> *insets = [NSMutableArray array];
+    NSMutableArray<UIView *> *bars = [NSMutableArray array];
+    for (UIView *sub in view.subviews) {
+        if ([sub isKindOfClass:UIVisualEffectView.class]) continue;
+        CGFloat right = oldBounds.size.width - CGRectGetMaxX(sub.frame);
+        CGFloat bottom = oldBounds.size.height - CGRectGetMaxY(sub.frame);
+        [bars addObject:sub];
+        [insets addObject:[NSValue valueWithUIEdgeInsets:UIEdgeInsetsMake(sub.frame.origin.y, sub.frame.origin.x, bottom, right)]];
     }
-    CGFloat scale = MIN(avail / placed.size.width, 0.88f);
-    if (scale < 0.78f) scale = 0.78f;
-    CGFloat height = placed.size.height * scale;
-    CGPoint target = CGPointMake(minX + avail / 2, CGRectGetMaxY(placed) - height / 2);
-    CGPoint mid = CGPointMake(CGRectGetMidX(placed), CGRectGetMidY(placed));
-    CGPoint zero = [view.superview convertPoint:CGPointZero fromView:nil];
-    CGPoint shift = [view.superview convertPoint:CGPointMake(target.x - mid.x, target.y - mid.y) fromView:nil];
-    // Scale first, then move. Translating the scale itself would shrink the shift and leave the bar under the notch.
-    CGAffineTransform moved = CGAffineTransformMakeTranslation(shift.x - zero.x, shift.y - zero.y);
-    view.transform = CGAffineTransformScale(moved, scale, scale);
-    sg_fittingBar = NO;
+    sg_fittingBar++;
+    view.frame = fittedInHost;
+    for (NSUInteger i = 0; i < bars.count; i++) {
+        UIEdgeInsets edge = insets[i].UIEdgeInsetsValue;
+        UIView *sub = bars[i];
+        CGRect next = CGRectMake(edge.left, edge.top,
+                                  MAX(0, view.bounds.size.width - edge.left - edge.right),
+                                  MAX(0, view.bounds.size.height - edge.top - edge.bottom));
+        sub.frame = next;
+        [sub layoutIfNeeded];
+        next.size.width = MAX(0, view.bounds.size.width - edge.left - edge.right);
+        next.size.height = MAX(0, view.bounds.size.height - edge.top - edge.bottom);
+        sub.frame = next;
+    }
+    sg_fittingBar--;
 }
 
 static void styleNowPlayingBar(UIViewController *container) {
@@ -531,8 +545,8 @@ static void styleNowPlayingBar(UIViewController *container) {
     %orig;
     if (sg_fittingBar) return;
     UIViewController *container = (UIViewController *)self;
-    styleNowPlayingBar(container);
     fitLandscapeNowPlaying(container.view);
+    styleNowPlayingBar(container);
 }
 %end
 
@@ -542,8 +556,8 @@ static void styleNowPlayingBar(UIViewController *container) {
     if (sg_fittingBar) return;
     UIViewController *parent = ((UIViewController *)self).parentViewController;
     if ([NSStringFromClass(parent.class) containsString:@"NowPlayingBarContainer"]) {
-        styleNowPlayingBar(parent);
         fitLandscapeNowPlaying(parent.view);
+        styleNowPlayingBar(parent);
     }
 }
 %end
