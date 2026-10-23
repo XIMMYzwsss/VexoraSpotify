@@ -309,6 +309,16 @@ static UIInterfaceOrientationMask orientationsFor(id self, SEL _cmd, UIApplicati
     return UIInterfaceOrientationMaskAllButUpsideDown;
 }
 
+// Device landscape left is interface landscape right, and the other way round. Asking for the combined
+// landscape mask leaves the scene on the side it already chose, so turning the phone over keeps the
+// upright layout in a wide window and the app only fills half of it.
+static UIInterfaceOrientationMask maskForDevice(UIDeviceOrientation orientation) {
+    if (orientation == UIDeviceOrientationLandscapeLeft) return UIInterfaceOrientationMaskLandscapeRight;
+    if (orientation == UIDeviceOrientationLandscapeRight) return UIInterfaceOrientationMaskLandscapeLeft;
+    if (orientation == UIDeviceOrientationPortrait) return UIInterfaceOrientationMaskPortrait;
+    return 0;
+}
+
 static UIInterfaceOrientationMask anyOrientation(id self, SEL _cmd) {
     (void)self; (void)_cmd;
     return UIInterfaceOrientationMaskAllButUpsideDown;
@@ -391,7 +401,30 @@ static void requestOrientations(UIWindowScene *scene, UIInterfaceOrientationMask
             SGLog(@"redesign player: the scene did not turn: %@", error.localizedDescription);
             dispatch_async(dispatch_get_main_queue(), ^{ reveal(window); });
         }];
+        for (UIWindow *sceneWindow in scene.windows) {
+            if (sceneWindow.hidden) continue;
+            [sceneWindow.rootViewController setNeedsUpdateOfSupportedInterfaceOrientations];
+        }
     }
+}
+
+// A landscape window whose root view is still the upright size draws that layout on half the screen.
+static BOOL sg_repairingRoot;
+
+static void repairRoot(UIWindow *window) {
+    if (sg_repairingRoot || !window || window == sg_window || window.hidden) return;
+    UIView *root = window.rootViewController.view;
+    if (!root || root.superview != window) return;
+    CGSize windowSize = window.bounds.size, rootSize = root.bounds.size;
+    if (windowSize.width < 1 || windowSize.height < 1) return;
+    BOOL windowLandscape = windowSize.width > windowSize.height + 1;
+    BOOL rootLandscape = rootSize.width > rootSize.height + 1;
+    if (windowLandscape == rootLandscape
+        && rootSize.width > windowSize.width * 0.75
+        && rootSize.height > windowSize.height * 0.75) return;
+    sg_repairingRoot = YES;
+    root.frame = window.bounds;
+    sg_repairingRoot = NO;
 }
 
 void SGRPlayerShowLandscape(BOOL show) {
@@ -407,7 +440,8 @@ void SGRPlayerShowLandscape(BOOL show) {
         sg_window.rootViewController = [SGRLandscapeLyricsController new];
         SGRPlayerPortraitLyricsObscured(YES);
         [sg_window makeKeyAndVisible];
-        requestOrientations(scene, UIInterfaceOrientationMaskLandscape);
+        UIInterfaceOrientationMask mask = maskForDevice(UIDevice.currentDevice.orientation);
+        requestOrientations(scene, mask ? mask : UIInterfaceOrientationMaskLandscape);
         if (UIInterfaceOrientationIsLandscape(scene.interfaceOrientation)) reveal(sg_window);
         SGLog(@"redesign player: the lyrics turn sideways");
     } else if (!show && sg_window) {
@@ -417,7 +451,8 @@ void SGRPlayerShowLandscape(BOOL show) {
         // A sheet up over the lines (a line's meanings) goes with them, or it would be left on a hidden window.
         [window.rootViewController dismissViewControllerAnimated:NO completion:nil];
         if (@available(iOS 16.0, *)) [window.rootViewController setNeedsUpdateOfSupportedInterfaceOrientations];
-        requestOrientations(scene, UIInterfaceOrientationMaskAllButUpsideDown);
+        UIInterfaceOrientationMask mask = maskForDevice(UIDevice.currentDevice.orientation);
+        requestOrientations(scene, mask ? mask : UIInterfaceOrientationMaskAllButUpsideDown);
         // Faded out as the scene turns back; the player is key again once it is gone, unless the lines came
         // back meanwhile.
         SGRAnimate(SGRMotionFade, ^{ window.alpha = 0; }, ^(BOOL finished) {
@@ -437,6 +472,16 @@ void SGRPlayerShowLandscape(BOOL show) {
 
 static void orientationChanged(void) {
     UIDeviceOrientation orientation = UIDevice.currentDevice.orientation;
+    UIInterfaceOrientationMask mask = maskForDevice(orientation);
+    UIWindowScene *scene = (UIWindowScene *)UIApplication.sharedApplication.connectedScenes.anyObject;
+    if (mask && [scene isKindOfClass:UIWindowScene.class]) {
+        UIInterfaceOrientation wanted = UIInterfaceOrientationUnknown;
+        if (orientation == UIDeviceOrientationLandscapeLeft) wanted = UIInterfaceOrientationLandscapeRight;
+        else if (orientation == UIDeviceOrientationLandscapeRight) wanted = UIInterfaceOrientationLandscapeLeft;
+        else if (orientation == UIDeviceOrientationPortrait) wanted = UIInterfaceOrientationPortrait;
+        if (scene.interfaceOrientation != wanted) requestOrientations(scene, mask);
+        for (UIWindow *window in scene.windows) repairRoot(window);
+    }
     if (UIDeviceOrientationIsLandscape(orientation)) {
         if (!sg_shut && SGEnabled(SGRKeyLyricsLandscape) && SGRPlayerLyricsOpen()) SGRPlayerShowLandscape(YES);
     } else if (orientation == UIDeviceOrientationPortrait) {
@@ -463,10 +508,17 @@ void SGRPlayerLyricsOrientationChanged(void) {
 %hook UIViewController
 - (UIInterfaceOrientationMask)supportedInterfaceOrientations {
     UIInterfaceOrientationMask mask = %orig;
-    if (mask & (UIInterfaceOrientationMaskLandscapeLeft | UIInterfaceOrientationMaskLandscapeRight)) return mask;
+    // One landscape side on its own is what leaves the other side upright and half width.
     return mask | UIInterfaceOrientationMaskLandscapeLeft | UIInterfaceOrientationMaskLandscapeRight;
 }
 - (BOOL)shouldAutorotate { return YES; }
+%end
+
+%hook UIWindow
+- (void)layoutSubviews {
+    %orig;
+    repairRoot((UIWindow *)self);
+}
 %end
 
 %hook UINavigationController
