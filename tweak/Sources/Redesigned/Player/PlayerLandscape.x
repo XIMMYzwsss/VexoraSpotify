@@ -56,7 +56,7 @@ static BOOL sg_shut;
 // A glyph in a 44pt square, so the touch is as large as the default control whatever the glyph's size.
 static UIButton *controlButton(NSString *symbol, CGFloat size, NSString *label, SEL action, id target) {
     UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
-    SGRStyleLyricsChromeButton(button, symbol, size);
+    SGRStyleLyricsChromeButton(button, symbol, size, UIImageSymbolWeightBold);
     button.tintColor = UIColor.whiteColor;
     button.accessibilityLabel = label;
     [button addTarget:target action:action forControlEvents:UIControlEventTouchUpInside];
@@ -223,7 +223,7 @@ static UIButton *controlButton(NSString *symbol, CGFloat size, NSString *label, 
     if (!state) return;
     _title.text = state.track.trackTitle;
     _artist.text = state.track.artistName;
-    SGRStyleLyricsChromeButton(_play, state.isPaused ? @"play.fill" : @"pause.fill", 30);
+    SGRStyleLyricsChromeButton(_play, state.isPaused ? @"play.fill" : @"pause.fill", 30, UIImageSymbolWeightBold);
     _play.accessibilityLabel = state.isPaused ? @"Play" : @"Pause";
     _field.motionHeld = state.isPaused;
     // A pause brings the controls back and keeps them; playing again, from here or anywhere, starts the

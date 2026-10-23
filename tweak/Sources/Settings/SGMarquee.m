@@ -6,7 +6,8 @@ static const CFTimeInterval kRest = 2;
 static NSString *const kScroll = @"sg.marquee";
 
 @implementation SGMarqueeLabel {
-    UILabel *_label;
+    UIView *_run;
+    UILabel *_label, *_outer, *_edge;
     CAGradientLayer *_fade;
     NSString *_text;
     UIColor *_textColor, *_outlineColor;
@@ -18,8 +19,11 @@ static NSString *const kScroll = @"sg.marquee";
     self.clipsToBounds = YES;
     self.isAccessibilityElement = YES;
     self.accessibilityTraits = UIAccessibilityTraitStaticText;
+    _run = [UIView new];
+    _run.userInteractionEnabled = NO;
+    [self addSubview:_run];
     _label = [UILabel new];
-    [self addSubview:_label];
+    [_run addSubview:_label];
     _fade = [CAGradientLayer layer];
     _fade.startPoint = CGPointMake(0, 0.5);
     _fade.endPoint = CGPointMake(1, 0.5);
@@ -37,20 +41,50 @@ static NSString *const kScroll = @"sg.marquee";
 - (UIColor *)textColor { return _textColor; }
 - (UIColor *)outlineColor { return _outlineColor; }
 
+static NSAttributedString *strokeLine(NSString *text, UIFont *font, UIColor *stroke, CGFloat width) {
+    return [[NSAttributedString alloc] initWithString:text attributes:@{
+        NSFontAttributeName: font,
+        NSForegroundColorAttributeName: UIColor.clearColor,
+        NSStrokeColorAttributeName: stroke,
+        NSStrokeWidthAttributeName: @(width),
+    }];
+}
+
+static BOOL lightColor(UIColor *color) {
+    CGFloat r = 0, g = 0, b = 0, a = 0;
+    if (![color getRed:&r green:&g blue:&b alpha:&a]) return YES;
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.62;
+}
+
+// The stroke sits under the fill, so the letters keep their own weight. A white stroke on white
+// letters gets a thin dark edge between them, or the white ring would just look bolder.
 - (void)applyLabel {
+    UIFont *font = _label.font ?: [UIFont systemFontOfSize:17];
+    UIColor *fill = _textColor ?: UIColor.labelColor;
+    _label.attributedText = nil;
+    _label.text = _text;
+    _label.textColor = fill;
+    _label.font = font;
     if (!_outlineColor || !_text.length) {
-        _label.attributedText = nil;
-        _label.text = _text;
-        _label.textColor = _textColor;
+        _outer.hidden = _edge.hidden = YES;
         return;
     }
-    UIFont *font = _label.font ?: [UIFont systemFontOfSize:17];
-    _label.attributedText = [[NSAttributedString alloc] initWithString:_text attributes:@{
-        NSFontAttributeName: font,
-        NSForegroundColorAttributeName: _textColor ?: UIColor.labelColor,
-        NSStrokeColorAttributeName: _outlineColor,
-        NSStrokeWidthAttributeName: @(-3.0),
-    }];
+    if (!_outer) {
+        _outer = [UILabel new];
+        _edge = [UILabel new];
+        _outer.clipsToBounds = _edge.clipsToBounds = NO;
+        [_run insertSubview:_outer belowSubview:_label];
+        [_run insertSubview:_edge aboveSubview:_outer];
+    }
+    _outer.hidden = NO;
+    _outer.font = font;
+    BOOL separate = lightColor(_outlineColor) && lightColor(fill);
+    _outer.attributedText = strokeLine(_text, font, _outlineColor, separate ? 6 : 3.5);
+    _edge.hidden = !separate;
+    if (separate) {
+        _edge.font = font;
+        _edge.attributedText = strokeLine(_text, font, UIColor.blackColor, 3.2);
+    }
 }
 
 - (void)setText:(NSString *)text {
@@ -95,9 +129,11 @@ static NSString *const kScroll = @"sg.marquee";
     CGFloat textWidth = ceil([_label sizeThatFits:CGSizeMake(CGFLOAT_MAX, size.height)].width);
     CGFloat overflow = textWidth - size.width;
     BOOL scrolls = overflow > 0.5 && !UIAccessibilityIsReduceMotionEnabled() && self.window;
-    _label.lineBreakMode = scrolls ? NSLineBreakByClipping : NSLineBreakByTruncatingTail;
+    NSLineBreakMode wrap = scrolls ? NSLineBreakByClipping : NSLineBreakByTruncatingTail;
+    _label.lineBreakMode = _outer.lineBreakMode = _edge.lineBreakMode = wrap;
     CGRect frame = CGRectMake(0, 0, scrolls ? textWidth : size.width, size.height);
-    if (!CGRectEqualToRect(_label.frame, frame)) _label.frame = frame;
+    if (!CGRectEqualToRect(_run.frame, frame)) _run.frame = frame;
+    _label.frame = _outer.frame = _edge.frame = _run.bounds;
 
     self.layer.mask = scrolls ? _fade : nil;
     if (scrolls) {
@@ -109,9 +145,9 @@ static NSString *const kScroll = @"sg.marquee";
     }
 
     CGFloat travel = scrolls ? overflow + kFade : 0;
-    if (travel == _scrolled && [_label.layer animationForKey:kScroll]) return;
+    if (travel == _scrolled && [_run.layer animationForKey:kScroll]) return;
     _scrolled = travel;
-    [_label.layer removeAnimationForKey:kScroll];
+    [_run.layer removeAnimationForKey:kScroll];
     if (!scrolls) return;
     CFTimeInterval glide = travel / kSpeed, total = 2 * (kRest + glide);
     CAKeyframeAnimation *scroll = [CAKeyframeAnimation animationWithKeyPath:@"transform.translation.x"];
@@ -127,7 +163,7 @@ static NSString *const kScroll = @"sg.marquee";
     scroll.repeatCount = HUGE_VALF;
     // A text's glide needs no more than the display's base rate.
     if (@available(iOS 15.0, *)) scroll.preferredFrameRateRange = CAFrameRateRangeMake(30, 60, 60);
-    [_label.layer addAnimation:scroll forKey:kScroll];
+    [_run.layer addAnimation:scroll forKey:kScroll];
 }
 
 @end

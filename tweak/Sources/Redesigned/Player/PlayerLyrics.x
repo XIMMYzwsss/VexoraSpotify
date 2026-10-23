@@ -780,7 +780,7 @@ static UIWindow *sg_portrait;
     [self.view addSubview:_artist];
 
     _close = [UIButton buttonWithType:UIButtonTypeSystem];
-    SGRStyleLyricsChromeButton(_close, @"chevron.down", 18);
+    SGRStyleLyricsChromeButton(_close, @"chevron.down", 18, UIImageSymbolWeightSemibold);
     _close.tintColor = UIColor.whiteColor;
     _close.accessibilityLabel = @"Close lyrics";
     [_close addTarget:self action:@selector(close) forControlEvents:UIControlEventTouchUpInside];
@@ -791,7 +791,7 @@ static UIWindow *sg_portrait;
     [_play addTarget:self action:@selector(togglePlay) forControlEvents:UIControlEventTouchUpInside];
     UIButton *previous = [self transport:@"backward.fill" label:@"Previous track" action:@selector(previous)];
     UIButton *next = [self transport:@"forward.fill" label:@"Next track" action:@selector(next)];
-    SGRStyleLyricsChromeButton(_play, @"pause.fill", 28);
+    SGRStyleLyricsChromeButton(_play, @"pause.fill", 28, UIImageSymbolWeightBold);
     _controls = [[UIStackView alloc] initWithArrangedSubviews:@[previous, _play, next]];
     _controls.distribution = UIStackViewDistributionEqualSpacing;
     _controls.alignment = UIStackViewAlignmentCenter;
@@ -823,7 +823,7 @@ static UIWindow *sg_portrait;
 
 - (UIButton *)transport:(NSString *)symbol label:(NSString *)label action:(SEL)action {
     UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
-    SGRStyleLyricsChromeButton(button, symbol, 22);
+    SGRStyleLyricsChromeButton(button, symbol, 22, UIImageSymbolWeightBold);
     button.tintColor = UIColor.whiteColor;
     button.accessibilityLabel = label;
     [button addTarget:self action:action forControlEvents:UIControlEventTouchUpInside];
@@ -918,7 +918,7 @@ static UIWindow *sg_portrait;
     _title.text = state.track.trackTitle;
     _artist.text = state.track.artistName;
     BOOL paused = state.isPaused;
-    SGRStyleLyricsChromeButton(_play, paused ? @"play.fill" : @"pause.fill", 28);
+    SGRStyleLyricsChromeButton(_play, paused ? @"play.fill" : @"pause.fill", 28, UIImageSymbolWeightBold);
     _play.accessibilityLabel = paused ? @"Play" : @"Pause";
     _field.motionHeld = paused;
     if (paused) [self setControlsShown:YES];

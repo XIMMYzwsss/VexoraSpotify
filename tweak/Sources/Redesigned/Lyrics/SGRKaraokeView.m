@@ -1225,7 +1225,7 @@ typedef struct {
     CGFloat _builtWidth;
     BOOL _showing;
     CAGradientLayer *_fade;
-    UILabel *_credit;
+    UILabel *_credit, *_creditOuter, *_creditEdge;
     CGFloat _fontSize, _margin, _lineGap, _blurPerLine, _maxBlur;
     BOOL _crediting;   // the switch is read once: the page asks for the source on every frame until it has one
     double _clock;
@@ -1335,13 +1335,38 @@ typedef struct {
 
 - (void)outlineCredit {
     NSString *text = _credit.text;
-    if (!text.length || _compact) return;
-    _credit.attributedText = [[NSAttributedString alloc] initWithString:text attributes:@{
-        NSFontAttributeName: _credit.font,
-        NSForegroundColorAttributeName: [UIColor colorWithWhite:1 alpha:kCreditAlpha],
-        NSStrokeColorAttributeName: SGRLyricsOutlineColor(),
-        NSStrokeWidthAttributeName: @(-2.0),
-    }];
+    if (!text.length || _compact) {
+        _creditOuter.hidden = _creditEdge.hidden = YES;
+        return;
+    }
+    UIColor *fill = [UIColor colorWithWhite:1 alpha:kCreditAlpha];
+    _credit.attributedText = nil;
+    _credit.text = text;
+    _credit.textColor = fill;
+    if (!_creditOuter) {
+        _creditOuter = [UILabel new];
+        _creditEdge = [UILabel new];
+        [self insertSubview:_creditOuter belowSubview:_credit];
+        [self insertSubview:_creditEdge aboveSubview:_creditOuter];
+    }
+    UIColor *outline = SGRLyricsOutlineColor();
+    CGFloat r = 0, g = 0, b = 0, a = 0;
+    [outline getRed:&r green:&g blue:&b alpha:&a];
+    BOOL separate = 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.62;
+    NSAttributedString *(^stroke)(UIColor *, CGFloat) = ^NSAttributedString *(UIColor *color, CGFloat width) {
+        return [[NSAttributedString alloc] initWithString:text attributes:@{
+            NSFontAttributeName: _credit.font, NSForegroundColorAttributeName: UIColor.clearColor,
+            NSStrokeColorAttributeName: color, NSStrokeWidthAttributeName: @(width),
+        }];
+    };
+    _creditOuter.hidden = NO;
+    _creditOuter.font = _credit.font;
+    _creditOuter.attributedText = stroke(outline, separate ? 5 : 3);
+    _creditEdge.hidden = !separate;
+    if (separate) {
+        _creditEdge.font = _credit.font;
+        _creditEdge.attributedText = stroke(UIColor.blackColor, 2.6);
+    }
 }
 
 - (void)coverChanged {
@@ -1551,7 +1576,7 @@ void SGRLyricsPaintBackdrop(UIView *plate) {
     NSArray<UIColor *> *pair = SGRLyricsCoverColors();
     // Wide washes, not corner spots, so the color still shows beside the cover when the phone is sideways.
     const CGPoint starts[] = {{0.18, 0.22}, {0.84, 0.78}, {0.5, 0.46}};
-    const CGPoint ends[] = {{1.25, 1.15}, {-0.2, -0.05}, {1.45, 1.35}};
+    const CGPoint ends[] = {{0.715, 0.685}, {0.32, 0.365}, {0.975, 0.905}};
     const CGFloat alphas[] = {0.72, 0.62, 0.4};
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
@@ -1616,6 +1641,7 @@ void SGRLyricsPaintBackdrop(UIView *plate) {
     CGFloat bottom = self.bounds.size.height - _band.bottom;
     _credit.frame = CGRectMake(_margin, bottom - _credit.bounds.size.height - kCreditBottom,
                                _credit.bounds.size.width, _credit.bounds.size.height);
+    _creditOuter.frame = _creditEdge.frame = _credit.frame;
     if (_extras && !_extras.hidden) {
         _extras.frame = CGRectMake(_margin, bottom - kExtrasSide - kExtrasBottom, kExtrasSide, kExtrasSide);
         _credit.center = CGPointMake(CGRectGetMaxX(_extras.frame) + kExtrasCreditGap + _credit.bounds.size.width / 2, _extras.center.y);

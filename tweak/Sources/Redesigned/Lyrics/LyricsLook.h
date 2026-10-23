@@ -36,7 +36,7 @@ BOOL SGRLyricsOutlineEnabled(void);
 // White when the lyrics background is the darker one, black when it is the lighter one.
 UIColor *SGRLyricsOutlineColor(void);
 // A symbol with that outline, for the lyrics pages' controls. Refresh redraws it after the background changes.
-void SGRStyleLyricsChromeButton(UIButton *button, NSString *symbol, CGFloat pointSize);
+void SGRStyleLyricsChromeButton(UIButton *button, NSString *symbol, CGFloat pointSize, UIImageSymbolWeight weight);
 void SGRRefreshLyricsChromeButton(UIButton *button);
 
 typedef NS_ENUM(NSInteger, SGRLyricsColorMode) {

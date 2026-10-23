@@ -174,36 +174,51 @@ UIColor *SGRLyricsOutlineColor(void) {
 
 static const void *kChromeSymbol = &kChromeSymbol;
 static const void *kChromeSize = &kChromeSize;
+static const void *kChromeWeight = &kChromeWeight;
 
-static UIImage *outlinedSymbol(NSString *name, CGFloat pointSize) {
-    UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:pointSize weight:UIImageSymbolWeightBold];
+static void drawRing(UIImage *stamp, CGFloat pad, CGFloat reach) {
+    CGPoint offsets[] = {{-reach, 0}, {reach, 0}, {0, -reach}, {0, reach},
+                         {-reach, -reach}, {reach, -reach}, {-reach, reach}, {reach, reach}};
+    for (int i = 0; i < 8; i++) [stamp drawAtPoint:CGPointMake(pad + offsets[i].x, pad + offsets[i].y)];
+}
+
+static UIImage *outlinedSymbol(NSString *name, CGFloat pointSize, UIImageSymbolWeight weight) {
+    UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:pointSize weight:weight];
     UIColor *fill = UIColor.whiteColor, *stroke = SGRLyricsOutlineColor();
     UIImage *glyph = [[UIImage systemImageNamed:name withConfiguration:config] imageWithTintColor:fill renderingMode:UIImageRenderingModeAlwaysOriginal];
-    UIImage *stamp = [[UIImage systemImageNamed:name withConfiguration:config] imageWithTintColor:stroke renderingMode:UIImageRenderingModeAlwaysOriginal];
     if (!glyph) return nil;
-    CGFloat pad = 2;
+    UIImage *(^tinted)(UIColor *) = ^UIImage *(UIColor *color) {
+        return [[UIImage systemImageNamed:name withConfiguration:config] imageWithTintColor:color renderingMode:UIImageRenderingModeAlwaysOriginal];
+    };
+    CGFloat r = 0, g = 0, b = 0, a = 0;
+    [stroke getRed:&r green:&g blue:&b alpha:&a];
+    BOOL separate = 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.62;
+    CGFloat reach = separate ? 2.1 : 1.15;
+    CGFloat pad = reach + 0.5;
     CGSize size = CGSizeMake(glyph.size.width + pad * 2, glyph.size.height + pad * 2);
     UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:size];
     return [renderer imageWithActions:^(UIGraphicsImageRendererContext *ctx) {
         (void)ctx;
-        CGPoint offsets[] = {{-1.5, -1.5}, {-1.5, 0}, {-1.5, 1.5}, {0, -1.5}, {0, 1.5}, {1.5, -1.5}, {1.5, 0}, {1.5, 1.5}};
-        for (int i = 0; i < 8; i++) [stamp drawAtPoint:CGPointMake(pad + offsets[i].x, pad + offsets[i].y)];
+        if (separate) drawRing(tinted(UIColor.blackColor), pad, 1.05);
+        drawRing(tinted(stroke), pad, reach);
         [glyph drawAtPoint:CGPointMake(pad, pad)];
     }];
 }
 
-void SGRStyleLyricsChromeButton(UIButton *button, NSString *symbol, CGFloat pointSize) {
+void SGRStyleLyricsChromeButton(UIButton *button, NSString *symbol, CGFloat pointSize, UIImageSymbolWeight weight) {
     if (!button || !symbol.length) return;
     objc_setAssociatedObject(button, kChromeSymbol, symbol, OBJC_ASSOCIATION_COPY_NONATOMIC);
     objc_setAssociatedObject(button, kChromeSize, @(pointSize), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    [button setImage:outlinedSymbol(symbol, pointSize) forState:UIControlStateNormal];
+    objc_setAssociatedObject(button, kChromeWeight, @(weight), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    [button setImage:outlinedSymbol(symbol, pointSize, weight) forState:UIControlStateNormal];
 }
 
 void SGRRefreshLyricsChromeButton(UIButton *button) {
     NSString *symbol = objc_getAssociatedObject(button, kChromeSymbol);
     NSNumber *size = objc_getAssociatedObject(button, kChromeSize);
-    if (!symbol || !size) return;
-    [button setImage:outlinedSymbol(symbol, size.doubleValue) forState:UIControlStateNormal];
+    NSNumber *weight = objc_getAssociatedObject(button, kChromeWeight);
+    if (!symbol || !size || !weight) return;
+    [button setImage:outlinedSymbol(symbol, size.doubleValue, weight.integerValue) forState:UIControlStateNormal];
 }
 
 // The cover read stays as the desktop app's. Lyrics text gets a stronger version of that color.
