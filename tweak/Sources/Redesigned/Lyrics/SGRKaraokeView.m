@@ -138,7 +138,7 @@ static UILabel *wordLabel(NSString *text, UIFont *font, UIColor *color, CGRect f
     NSMutableDictionary *attrs = [NSMutableDictionary dictionaryWithDictionary:@{
         NSFontAttributeName: font, NSForegroundColorAttributeName: color}];
     if (outlined) {
-        attrs[NSStrokeColorAttributeName] = UIColor.blackColor;
+        attrs[NSStrokeColorAttributeName] = SGRLyricsOutlineColor();
         attrs[NSStrokeWidthAttributeName] = @(-2.0);
     }
     (void)vexoraLit;
@@ -1333,14 +1333,27 @@ typedef struct {
     }
 }
 
+- (void)outlineCredit {
+    NSString *text = _credit.text;
+    if (!text.length || _compact) return;
+    _credit.attributedText = [[NSAttributedString alloc] initWithString:text attributes:@{
+        NSFontAttributeName: _credit.font,
+        NSForegroundColorAttributeName: [UIColor colorWithWhite:1 alpha:kCreditAlpha],
+        NSStrokeColorAttributeName: SGRLyricsOutlineColor(),
+        NSStrokeWidthAttributeName: @(-2.0),
+    }];
+}
+
 - (void)coverChanged {
     if (!_compact) [self layoutFullscreenBackdrop];
-    if (SGRLyricsColorModeNow() == SGRLyricsColorModeCover) [self restyle];
+    [self outlineCredit];
+    if (SGRLyricsColorModeNow() == SGRLyricsColorModeCover || SGRLyricsOutlineEnabled()) [self restyle];
 }
 
 - (void)lookChanged {
     [self applyLook];
     _font = SGRLyricsFont(_fontSize, UIFontWeightBold);
+    [self outlineCredit];
     if (!_lines || _builtWidth <= 0) return;
     _sightArrangement = NSUIntegerMax;
     if (_compact) [self restyle];
@@ -1513,6 +1526,7 @@ void SGRLyricsFillScreen(UIView *host, UIView *behind) {
     }
     plate.frame = host.bounds;
     plate.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    if (behind.superview == host) [host insertSubview:plate aboveSubview:behind];
     SGRLyricsPaintBackdrop(plate);
     if (behind) behind.hidden = !plate.hidden;
 }
@@ -1535,17 +1549,30 @@ void SGRLyricsPaintBackdrop(UIView *plate) {
     plate.backgroundColor = UIColor.blackColor;
     plate.opaque = YES;
     NSArray<UIColor *> *pair = SGRLyricsCoverColors();
-    for (int i = 0; i < 2; i++) {
-        UIColor *tint = pair.count > (NSUInteger)i ? pair[i] : UIColor.whiteColor;
+    // Wide washes, not corner spots, so the color still shows beside the cover when the phone is sideways.
+    const CGPoint starts[] = {{0.18, 0.22}, {0.84, 0.78}, {0.5, 0.46}};
+    const CGPoint ends[] = {{1.25, 1.15}, {-0.2, -0.05}, {1.45, 1.35}};
+    const CGFloat alphas[] = {0.72, 0.62, 0.4};
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    for (int i = 0; i < 3; i++) {
+        UIColor *tint = pair.count ? pair[(NSUInteger)i % pair.count] : UIColor.whiteColor;
+        CGFloat h = 0, s = 0, b = 0, a = 0;
+        if ([tint getHue:&h saturation:&s brightness:&b alpha:&a]) {
+            if (s >= 0.06) s = MIN(1, MAX(0.5, s));
+            b = MIN(1, MAX(0.64, b));
+            tint = [UIColor colorWithHue:h saturation:s brightness:b alpha:1];
+        }
         CAGradientLayer *rad = [CAGradientLayer layer];
         rad.type = kCAGradientLayerRadial;
-        rad.colors = @[(id)[tint colorWithAlphaComponent:0.42].CGColor, (id)[tint colorWithAlphaComponent:0].CGColor];
-        rad.locations = @[@0, @0.6];
-        rad.startPoint = i == 0 ? CGPointMake(0.16, 0.08) : CGPointMake(0.92, 0.92);
-        rad.endPoint = i == 0 ? CGPointMake(0.75, 0.6) : CGPointMake(0.35, 0.35);
+        rad.colors = @[(id)[tint colorWithAlphaComponent:alphas[i]].CGColor, (id)[tint colorWithAlphaComponent:0].CGColor];
+        rad.locations = @[@0, @1];
+        rad.startPoint = starts[i];
+        rad.endPoint = ends[i];
         rad.frame = plate.bounds;
         [plate.layer addSublayer:rad];
     }
+    [CATransaction commit];
 }
 
 - (void)layoutFullscreenBackdrop {
@@ -2118,6 +2145,7 @@ static BOOL lyricsAreForeign(NSArray<SGKaraokeLine *> *lines, NSString *language
     NSString *text = source.length && _crediting ? [NSString stringWithFormat:@"Lyrics from %@", source] : nil;
     if (text == _credit.text || [text isEqualToString:_credit.text]) return;
     _credit.text = text;
+    [self outlineCredit];
     _credit.hidden = !_showing || !text.length;
     [self setNeedsLayout];
 }

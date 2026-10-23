@@ -9,4 +9,6 @@
 @property (nonatomic, copy) NSString *text;
 @property (nonatomic, strong) UIFont *font;
 @property (nonatomic, strong) UIColor *textColor;
+// Stroke around the glyphs. Nil draws the line plain, which is every title outside the lyrics pages.
+@property (nonatomic, strong) UIColor *outlineColor;
 @end

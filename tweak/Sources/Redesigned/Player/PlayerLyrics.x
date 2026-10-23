@@ -780,7 +780,7 @@ static UIWindow *sg_portrait;
     [self.view addSubview:_artist];
 
     _close = [UIButton buttonWithType:UIButtonTypeSystem];
-    [_close setImage:[UIImage systemImageNamed:@"chevron.down" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:18 weight:UIImageSymbolWeightSemibold]] forState:UIControlStateNormal];
+    SGRStyleLyricsChromeButton(_close, @"chevron.down", 18);
     _close.tintColor = UIColor.whiteColor;
     _close.accessibilityLabel = @"Close lyrics";
     [_close addTarget:self action:@selector(close) forControlEvents:UIControlEventTouchUpInside];
@@ -791,7 +791,7 @@ static UIWindow *sg_portrait;
     [_play addTarget:self action:@selector(togglePlay) forControlEvents:UIControlEventTouchUpInside];
     UIButton *previous = [self transport:@"backward.fill" label:@"Previous track" action:@selector(previous)];
     UIButton *next = [self transport:@"forward.fill" label:@"Next track" action:@selector(next)];
-    [_play setImage:[UIImage systemImageNamed:@"pause.fill" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:28 weight:UIImageSymbolWeightBold]] forState:UIControlStateNormal];
+    SGRStyleLyricsChromeButton(_play, @"pause.fill", 28);
     _controls = [[UIStackView alloc] initWithArrangedSubviews:@[previous, _play, next]];
     _controls.distribution = UIStackViewDistributionEqualSpacing;
     _controls.alignment = UIStackViewAlignmentCenter;
@@ -818,11 +818,12 @@ static UIWindow *sg_portrait;
     SGAddPlayerStateObserver(self);
     [self playerStateDidChange:SGPlayerState()];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(artworkChanged) name:SGRNowPlayingArtworkDidChangeNotification object:nil];
+    [self applyChrome];
 }
 
 - (UIButton *)transport:(NSString *)symbol label:(NSString *)label action:(SEL)action {
     UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
-    [button setImage:[UIImage systemImageNamed:symbol withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:22 weight:UIImageSymbolWeightBold]] forState:UIControlStateNormal];
+    SGRStyleLyricsChromeButton(button, symbol, 22);
     button.tintColor = UIColor.whiteColor;
     button.accessibilityLabel = label;
     [button addTarget:self action:action forControlEvents:UIControlEventTouchUpInside];
@@ -855,8 +856,19 @@ static UIWindow *sg_portrait;
     SGRLyricsFillScreen(self.view, _field);
 }
 
+- (void)applyChrome {
+    UIColor *outline = SGRLyricsOutlineColor();
+    _title.outlineColor = outline;
+    _artist.outlineColor = outline;
+    SGRRefreshLyricsChromeButton(_close);
+    SGRRefreshLyricsChromeButton(_play);
+    for (UIView *view in _controls.arrangedSubviews)
+        if ([view isKindOfClass:UIButton.class]) SGRRefreshLyricsChromeButton((UIButton *)view);
+}
+
 - (void)backdropChanged {
     [self.view setNeedsLayout];
+    [self applyChrome];
 }
 
 - (void)viewDidAppear:(BOOL)animated {
@@ -906,7 +918,7 @@ static UIWindow *sg_portrait;
     _title.text = state.track.trackTitle;
     _artist.text = state.track.artistName;
     BOOL paused = state.isPaused;
-    [_play setImage:[UIImage systemImageNamed:paused ? @"play.fill" : @"pause.fill" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:28 weight:UIImageSymbolWeightBold]] forState:UIControlStateNormal];
+    SGRStyleLyricsChromeButton(_play, paused ? @"play.fill" : @"pause.fill", 28);
     _play.accessibilityLabel = paused ? @"Play" : @"Pause";
     _field.motionHeld = paused;
     if (paused) [self setControlsShown:YES];
@@ -932,12 +944,7 @@ static UIWindow *sg_portrait;
 
 - (void)restartRest {
     [_rest invalidate];
-    if (!SGEnabled(SGRKeyLyricsAutoHide) || SGPlayerState().isPaused || UIAccessibilityIsVoiceOverRunning()) return;
-    __weak SGRPortraitLyricsController *weakSelf = self;
-    _rest = [NSTimer scheduledTimerWithTimeInterval:kRest repeats:NO block:^(NSTimer *timer) {
-        (void)timer;
-        if (!UIAccessibilityIsVoiceOverRunning()) [weakSelf setControlsShown:NO];
-    }];
+    _rest = nil;
 }
 
 @end

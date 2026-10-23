@@ -6,6 +6,7 @@
 #import "Shared/Player/PlayerState.h"
 #import "Redesigned/Kit/SGRBridges.h"
 #import <CoreText/CoreText.h>
+#import <objc/runtime.h>
 
 NSNotificationName const SGRLyricsLookDidChangeNotification = @"spotifyglass.redesign.lyricsLookDidChange";
 NSNotificationName const SGRLyricsCoverColorsDidChangeNotification = @"spotifyglass.redesign.lyricsCoverColorsDidChange";
@@ -139,6 +140,80 @@ static NSInteger rgbFromColor(UIColor *color) {
 
 BOOL SGRLyricsOutlineEnabled(void) {
     return SGFlag(SGRKeyLyricsOutline, NO);
+}
+
+static void rgbOf(UIColor *color, CGFloat *r, CGFloat *g, CGFloat *b) {
+    CGFloat a = 0;
+    if (![color getRed:r green:g blue:b alpha:&a]) *r = *g = *b = 0;
+}
+
+static CGFloat luminance(CGFloat r, CGFloat g, CGFloat b) {
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+// The page's own background, not the white of the words on it.
+static CGFloat backdropLuminance(void) {
+    if (SGRLyricsFullscreenBackgroundNow() == SGRLyricsFullscreenBackgroundSolid) {
+        CGFloat r, g, b;
+        rgbOf(SGRLyricsSolidBackgroundColor(), &r, &g, &b);
+        return luminance(r, g, b);
+    }
+    NSArray<UIColor *> *pair = SGRLyricsCoverColors();
+    CGFloat r1, g1, b1, r2, g2, b2;
+    rgbOf(pair.firstObject, &r1, &g1, &b1);
+    rgbOf(pair.count > 1 ? pair[1] : pair.firstObject, &r2, &g2, &b2);
+    CGFloat art = (luminance(r1, g1, b1) + luminance(r2, g2, b2)) / 2;
+    // Cover glow sits on black, so only a bright wash counts as a light page.
+    if (SGRLyricsFullscreenBackgroundNow() == SGRLyricsFullscreenBackgroundCover) return art * 0.5;
+    return art;
+}
+
+UIColor *SGRLyricsOutlineColor(void) {
+    return backdropLuminance() > 0.5 ? UIColor.blackColor : UIColor.whiteColor;
+}
+
+static const void *kChromeSymbol = &kChromeSymbol;
+static const void *kChromeSize = &kChromeSize;
+
+static UIImage *outlinedSymbol(NSString *name, CGFloat pointSize) {
+    UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:pointSize weight:UIImageSymbolWeightBold];
+    UIColor *fill = UIColor.whiteColor, *stroke = SGRLyricsOutlineColor();
+    UIImage *glyph = [[UIImage systemImageNamed:name withConfiguration:config] imageWithTintColor:fill renderingMode:UIImageRenderingModeAlwaysOriginal];
+    UIImage *stamp = [[UIImage systemImageNamed:name withConfiguration:config] imageWithTintColor:stroke renderingMode:UIImageRenderingModeAlwaysOriginal];
+    if (!glyph) return nil;
+    CGFloat pad = 2;
+    CGSize size = CGSizeMake(glyph.size.width + pad * 2, glyph.size.height + pad * 2);
+    UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:size];
+    return [renderer imageWithActions:^(UIGraphicsImageRendererContext *ctx) {
+        (void)ctx;
+        CGPoint offsets[] = {{-1.5, -1.5}, {-1.5, 0}, {-1.5, 1.5}, {0, -1.5}, {0, 1.5}, {1.5, -1.5}, {1.5, 0}, {1.5, 1.5}};
+        for (int i = 0; i < 8; i++) [stamp drawAtPoint:CGPointMake(pad + offsets[i].x, pad + offsets[i].y)];
+        [glyph drawAtPoint:CGPointMake(pad, pad)];
+    }];
+}
+
+void SGRStyleLyricsChromeButton(UIButton *button, NSString *symbol, CGFloat pointSize) {
+    if (!button || !symbol.length) return;
+    objc_setAssociatedObject(button, kChromeSymbol, symbol, OBJC_ASSOCIATION_COPY_NONATOMIC);
+    objc_setAssociatedObject(button, kChromeSize, @(pointSize), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    [button setImage:outlinedSymbol(symbol, pointSize) forState:UIControlStateNormal];
+}
+
+void SGRRefreshLyricsChromeButton(UIButton *button) {
+    NSString *symbol = objc_getAssociatedObject(button, kChromeSymbol);
+    NSNumber *size = objc_getAssociatedObject(button, kChromeSize);
+    if (!symbol || !size) return;
+    [button setImage:outlinedSymbol(symbol, size.doubleValue) forState:UIControlStateNormal];
+}
+
+// The cover read stays as the desktop app's. Lyrics text gets a stronger version of that color.
+static UIColor *moreVibrant(UIColor *color) {
+    CGFloat h = 0, s = 0, b = 0, a = 0;
+    if (![color getHue:&h saturation:&s brightness:&b alpha:&a]) return color;
+    if (s < 0.08) return [UIColor colorWithHue:h saturation:s brightness:MIN(1, MAX(b, 0.72)) alpha:1];
+    s = MIN(1, s * 1.35 + 0.08);
+    b = b < 0.62 ? MIN(1, 0.62 + (0.62 - b) * 0.2) : MIN(1, b * 1.05);
+    return [UIColor colorWithHue:h saturation:s brightness:b alpha:1];
 }
 
 static NSInteger lyricsTextRGB(void) {
@@ -328,7 +403,7 @@ void SGRSetLyricsColorMode(SGRLyricsColorMode mode, id changer) {
 }
 
 UIColor *SGRLyricsTextColor(void) {
-    if (SGRLyricsColorModeNow() == SGRLyricsColorModeCover) return SGRLyricsCoverColor();
+    if (SGRLyricsColorModeNow() == SGRLyricsColorModeCover) return moreVibrant(SGRLyricsCoverColor());
     return colorFromRGB(lyricsTextRGB());
 }
 

@@ -1,7 +1,6 @@
 // Player redesign: the lyrics turn sideways with the phone onto a landscape screen of their own. The cover
 // is on the left with the title, the artist and the controls under it, and the lines are on the right.
-// The controls fade after a few seconds without a touch and come back at a tap, as in the player: the
-// tap that brings them back lands on a clear shield over the screen, so it never seeks. The button beside
+// The cover, the title and the controls stay on screen. The button beside
 // the title turns the screen back to portrait, as VoiceOver's escape does, for a phone held flat or on its
 // side; the screen stays shut then until the phone has stood upright again.
 //
@@ -19,8 +18,6 @@
 #import "Player.h"
 
 static const CGFloat kSide = 32, kCoverGap = 16, kControlSide = 44, kColumnShare = 0.38;
-static const NSTimeInterval kLandscapeRest = 4;
-
 static UIWindow *sg_window;
 // Shut from the screen: turning the phone again does not reopen it until it has stood upright.
 static BOOL sg_shut;
@@ -59,8 +56,7 @@ static BOOL sg_shut;
 // A glyph in a 44pt square, so the touch is as large as the default control whatever the glyph's size.
 static UIButton *controlButton(NSString *symbol, CGFloat size, NSString *label, SEL action, id target) {
     UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
-    [button setImage:[UIImage systemImageNamed:symbol withConfiguration:
-        [UIImageSymbolConfiguration configurationWithPointSize:size weight:UIImageSymbolWeightBold]] forState:UIControlStateNormal];
+    SGRStyleLyricsChromeButton(button, symbol, size);
     button.tintColor = UIColor.whiteColor;
     button.accessibilityLabel = label;
     [button addTarget:target action:action forControlEvents:UIControlEventTouchUpInside];
@@ -139,7 +135,7 @@ static UIButton *controlButton(NSString *symbol, CGFloat size, NSString *label, 
     _lyrics.browsingBegan = ^{ [weakSelf rest]; };
 
     _hide = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(rest)];
-    [self.view addGestureRecognizer:_hide];
+    _hide.enabled = NO;
     _shield = [[UIView alloc] initWithFrame:self.view.bounds];
     _shield.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     _shield.accessibilityElementsHidden = YES;
@@ -152,6 +148,7 @@ static UIButton *controlButton(NSString *symbol, CGFloat size, NSString *label, 
     // The shield is hidden from VoiceOver, so turning it on brings the controls back and keeps them.
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(wake)
                                                name:UIAccessibilityVoiceOverStatusDidChangeNotification object:nil];
+    [self applyChrome];
 }
 
 - (void)dealloc {
@@ -181,8 +178,19 @@ static UIButton *controlButton(NSString *symbol, CGFloat size, NSString *label, 
     SGRLyricsFillScreen(self.view, _field);
 }
 
+- (void)applyChrome {
+    UIColor *outline = SGRLyricsOutlineColor();
+    _title.outlineColor = outline;
+    _artist.outlineColor = outline;
+    SGRRefreshLyricsChromeButton(_close);
+    SGRRefreshLyricsChromeButton(_play);
+    for (UIView *view in _controls.arrangedSubviews)
+        if ([view isKindOfClass:UIButton.class]) SGRRefreshLyricsChromeButton((UIButton *)view);
+}
+
 - (void)backdropChanged {
     [self.view setNeedsLayout];
+    [self applyChrome];
 }
 
 - (void)viewDidAppear:(BOOL)animated {
@@ -215,8 +223,7 @@ static UIButton *controlButton(NSString *symbol, CGFloat size, NSString *label, 
     if (!state) return;
     _title.text = state.track.trackTitle;
     _artist.text = state.track.artistName;
-    [_play setImage:[UIImage systemImageNamed:state.isPaused ? @"play.fill" : @"pause.fill" withConfiguration:
-        [UIImageSymbolConfiguration configurationWithPointSize:30 weight:UIImageSymbolWeightBold]] forState:UIControlStateNormal];
+    SGRStyleLyricsChromeButton(_play, state.isPaused ? @"play.fill" : @"pause.fill", 30);
     _play.accessibilityLabel = state.isPaused ? @"Play" : @"Pause";
     _field.motionHeld = state.isPaused;
     // A pause brings the controls back and keeps them; playing again, from here or anywhere, starts the
@@ -262,7 +269,6 @@ static UIButton *controlButton(NSString *symbol, CGFloat size, NSString *label, 
 
 // The lines on their own, unless VoiceOver needs the controls to be there.
 - (void)rest {
-    if (!UIAccessibilityIsVoiceOverRunning()) [self setControlsShown:NO];
 }
 
 - (void)wake {
@@ -272,7 +278,7 @@ static UIButton *controlButton(NSString *symbol, CGFloat size, NSString *label, 
 - (void)setControlsShown:(BOOL)shown {
     [_rest invalidate];
     _rest = nil;
-    _hide.enabled = shown;
+    _hide.enabled = NO;
     if (shown) [_shield removeFromSuperview];
     else if (!_shield.superview) {
         _shield.frame = self.view.bounds;
@@ -290,14 +296,6 @@ static UIButton *controlButton(NSString *symbol, CGFloat size, NSString *label, 
 - (void)restartRest {
     [_rest invalidate];
     _rest = nil;
-    if (!SGEnabled(SGRKeyLyricsLandscapeAutoHide) || SGPlayerState().isPaused || UIAccessibilityIsVoiceOverRunning()) return;
-    __weak SGRLandscapeLyricsController *weakSelf = self;
-    _rest = [NSTimer scheduledTimerWithTimeInterval:kLandscapeRest repeats:NO block:^(NSTimer *timer) {
-        // A sheet over the lines (a line's meanings) keeps them up, and the clock runs again behind it.
-        SGRLandscapeLyricsController *strongSelf = weakSelf;
-        if (strongSelf.presentedViewController) [strongSelf restartRest];
-        else [strongSelf rest];
-    }];
 }
 
 @end

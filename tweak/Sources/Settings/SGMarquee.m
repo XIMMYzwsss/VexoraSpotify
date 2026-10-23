@@ -8,6 +8,8 @@ static NSString *const kScroll = @"sg.marquee";
 @implementation SGMarqueeLabel {
     UILabel *_label;
     CAGradientLayer *_fade;
+    NSString *_text;
+    UIColor *_textColor, *_outlineColor;
     CGFloat _scrolled;   // how far the running animation travels, 0 while still
 }
 
@@ -30,13 +32,31 @@ static NSString *const kScroll = @"sg.marquee";
     [NSNotificationCenter.defaultCenter removeObserver:self];
 }
 
-- (NSString *)text { return _label.text; }
+- (NSString *)text { return _text; }
 - (UIFont *)font { return _label.font; }
-- (UIColor *)textColor { return _label.textColor; }
+- (UIColor *)textColor { return _textColor; }
+- (UIColor *)outlineColor { return _outlineColor; }
+
+- (void)applyLabel {
+    if (!_outlineColor || !_text.length) {
+        _label.attributedText = nil;
+        _label.text = _text;
+        _label.textColor = _textColor;
+        return;
+    }
+    UIFont *font = _label.font ?: [UIFont systemFontOfSize:17];
+    _label.attributedText = [[NSAttributedString alloc] initWithString:_text attributes:@{
+        NSFontAttributeName: font,
+        NSForegroundColorAttributeName: _textColor ?: UIColor.labelColor,
+        NSStrokeColorAttributeName: _outlineColor,
+        NSStrokeWidthAttributeName: @(-3.0),
+    }];
+}
 
 - (void)setText:(NSString *)text {
-    if ([text isEqualToString:_label.text]) return;
-    _label.text = text;
+    if (text == _text || [text isEqualToString:_text]) return;
+    _text = [text copy];
+    [self applyLabel];
     self.accessibilityLabel = text;
     _scrolled = -1;   // starts over from its start
     [self setNeedsLayout];
@@ -44,12 +64,22 @@ static NSString *const kScroll = @"sg.marquee";
 
 - (void)setFont:(UIFont *)font {
     _label.font = font;
+    [self applyLabel];
     _scrolled = -1;
     [self setNeedsLayout];
 }
 
 - (void)setTextColor:(UIColor *)textColor {
-    _label.textColor = textColor;
+    _textColor = textColor;
+    [self applyLabel];
+}
+
+- (void)setOutlineColor:(UIColor *)outlineColor {
+    if (outlineColor == _outlineColor || [outlineColor isEqual:_outlineColor]) return;
+    _outlineColor = outlineColor;
+    [self applyLabel];
+    _scrolled = -1;
+    [self setNeedsLayout];
 }
 
 - (void)didMoveToWindow {

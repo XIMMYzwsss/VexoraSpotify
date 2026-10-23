@@ -96,7 +96,7 @@ static void presentStyleSheet(UIViewController *owner) {
         lookSlider(@"Wave", 0, 2, 0.1, ^CGFloat(SGRLyricsLook l) { return l.wave; },
                    ^(SGRLyricsLook *l, double v) { l->wave = v; }, ^NSString *(double v) { return share(v); }, &sheetPage),
     ];
-    SGModRow *outline = SGOptionRow(@"Text outline", @"Black stroke around sung lyrics", SGRKeyLyricsOutline);
+    SGModRow *outline = SGOptionRow(@"Text outline", @"Stroke around sung lyrics, white on a dark background and black on a light one", SGRKeyLyricsOutline);
     outline.changed = ^(BOOL on) {
         (void)on;
         [NSNotificationCenter.defaultCenter postNotificationName:SGRLyricsLookDidChangeNotification object:sheetPage];
