@@ -28,6 +28,7 @@
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Redesigned/Lyrics/SGRKaraokeView.h"
+#import "Redesigned/Lyrics/LyricsLook.h"
 #import "Redesigned/Lyrics/SGRSingControl.h"
 #import "Settings/SGPageStyle.h"
 #import "Shared/Sing/SGSingController.h"
@@ -797,11 +798,16 @@ static UIWindow *sg_portrait;
     [self.view addSubview:_controls];
 
     _stage = [UIView new];
+    _stage.backgroundColor = UIColor.clearColor;
+    _stage.opaque = NO;
     [self.view addSubview:_stage];
     _lyrics = [[SGRKaraokeView alloc] initWithFrame:CGRectZero];
     _lyrics.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     _lyrics.extrasEnabled = SGEnabled(SGRKeyPlayerTranslateButton);
+    _lyrics.paintsBackdrop = NO;
     [_stage addSubview:_lyrics];
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(backdropChanged) name:SGRLyricsLookDidChangeNotification object:nil];
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(backdropChanged) name:SGRLyricsCoverColorsDidChangeNotification object:nil];
 
     _shield = [UIView new];
     _shield.accessibilityElementsHidden = YES;
@@ -846,6 +852,11 @@ static UIWindow *sg_portrait;
     _stage.frame = CGRectMake(0, stageY, self.view.bounds.size.width, CGRectGetMinY(_controls.frame) - 8 - stageY);
     _lyrics.frame = _stage.bounds;
     _shield.frame = self.view.bounds;
+    SGRLyricsFillScreen(self.view, _field);
+}
+
+- (void)backdropChanged {
+    [self.view setNeedsLayout];
 }
 
 - (void)viewDidAppear:(BOOL)animated {

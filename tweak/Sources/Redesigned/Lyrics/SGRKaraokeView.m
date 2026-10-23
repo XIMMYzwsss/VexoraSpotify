@@ -1243,7 +1243,7 @@ typedef struct {
     // The room the lines have (lineInsets), and the fade's edges on their way to it from _bandFrom.
     UIEdgeInsets _band, _bandFrom;
     CFTimeInterval _bandSince, _bandFor;
-    BOOL _keepsSing, _extrasHidden, _extrasEnabled;
+    BOOL _keepsSing, _extrasHidden, _extrasEnabled, _paintsBackdrop;
     void (^_browsingBegan)(void);
 }
 
@@ -1255,6 +1255,7 @@ typedef struct {
     _margin = kMargin;
     [self applyLook];
     _extrasEnabled = YES;
+    _paintsBackdrop = YES;
     _shown = [NSMutableDictionary dictionary];
     _sightArrangement = NSUIntegerMax;
     _fade = [CAGradientLayer layer];
@@ -1498,9 +1499,66 @@ typedef struct {
     [CATransaction commit];
 }
 
+void SGRLyricsFillScreen(UIView *host, UIView *behind) {
+    if (!host) return;
+    static const NSInteger kTag = 88006;
+    UIView *plate = [host viewWithTag:kTag];
+    if (!plate) {
+        plate = [UIView new];
+        plate.tag = kTag;
+        plate.userInteractionEnabled = NO;
+        plate.clipsToBounds = YES;
+        if (behind.superview == host) [host insertSubview:plate aboveSubview:behind];
+        else [host insertSubview:plate atIndex:0];
+    }
+    plate.frame = host.bounds;
+    plate.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    SGRLyricsPaintBackdrop(plate);
+    if (behind) behind.hidden = !plate.hidden;
+}
+
+void SGRLyricsPaintBackdrop(UIView *plate) {
+    if (!plate) return;
+    SGRLyricsFullscreenBackground mode = SGRLyricsFullscreenBackgroundNow();
+    if (mode == SGRLyricsFullscreenBackgroundOriginal) {
+        plate.hidden = YES;
+        plate.backgroundColor = UIColor.clearColor;
+        return;
+    }
+    plate.hidden = NO;
+    for (CALayer *sub in [plate.layer.sublayers copy]) if ([sub isKindOfClass:CAGradientLayer.class]) [sub removeFromSuperlayer];
+    if (mode == SGRLyricsFullscreenBackgroundSolid) {
+        plate.backgroundColor = SGRLyricsSolidBackgroundColor();
+        plate.opaque = YES;
+        return;
+    }
+    plate.backgroundColor = UIColor.blackColor;
+    plate.opaque = YES;
+    NSArray<UIColor *> *pair = SGRLyricsCoverColors();
+    for (int i = 0; i < 2; i++) {
+        UIColor *tint = pair.count > (NSUInteger)i ? pair[i] : UIColor.whiteColor;
+        CAGradientLayer *rad = [CAGradientLayer layer];
+        rad.type = kCAGradientLayerRadial;
+        rad.colors = @[(id)[tint colorWithAlphaComponent:0.42].CGColor, (id)[tint colorWithAlphaComponent:0].CGColor];
+        rad.locations = @[@0, @0.6];
+        rad.startPoint = i == 0 ? CGPointMake(0.16, 0.08) : CGPointMake(0.92, 0.92);
+        rad.endPoint = i == 0 ? CGPointMake(0.75, 0.6) : CGPointMake(0.35, 0.35);
+        rad.frame = plate.bounds;
+        [plate.layer addSublayer:rad];
+    }
+}
+
 - (void)layoutFullscreenBackdrop {
     static const NSInteger kTag = 88005;
-    SGRLyricsFullscreenBackground mode = SGRLyricsFullscreenBackgroundNow();
+    if (!self.paintsBackdrop) {
+        UIView *plate = [self viewWithTag:kTag];
+        plate.hidden = YES;
+        self.backgroundColor = UIColor.clearColor;
+        self.opaque = NO;
+        _scroll.backgroundColor = UIColor.clearColor;
+        _scroll.opaque = NO;
+        return;
+    }
     UIView *plate = [self viewWithTag:kTag];
     if (!plate) {
         plate = [UIView new];
@@ -1512,47 +1570,13 @@ typedef struct {
     plate.frame = self.bounds;
     plate.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     [self sendSubviewToBack:plate];
-    UIImageView *artView = nil;
-    UIVisualEffectView *blurView = nil;
-    for (UIView *sub in plate.subviews) {
-        if ([sub isKindOfClass:UIImageView.class]) artView = (UIImageView *)sub;
-        if ([sub isKindOfClass:UIVisualEffectView.class]) blurView = (UIVisualEffectView *)sub;
-    }
-    if (mode == SGRLyricsFullscreenBackgroundSolid) {
-        plate.hidden = NO;
-        artView.hidden = blurView.hidden = YES;
-        for (CALayer *sub in [plate.layer.sublayers copy]) if ([sub isKindOfClass:CAGradientLayer.class]) [sub removeFromSuperlayer];
-        UIColor *color = SGRLyricsSolidBackgroundColor();
-        plate.backgroundColor = color;
-        plate.opaque = YES;
-        self.backgroundColor = color;
-        self.opaque = YES;
-        return;
-    }
-    if (mode == SGRLyricsFullscreenBackgroundOriginal) {
-        plate.hidden = YES;
+    SGRLyricsPaintBackdrop(plate);
+    if (plate.hidden) {
         self.backgroundColor = UIColor.clearColor;
         self.opaque = NO;
-        return;
-    }
-    plate.hidden = NO;
-    artView.hidden = blurView.hidden = YES;
-    plate.backgroundColor = UIColor.blackColor;
-    plate.opaque = YES;
-    self.backgroundColor = UIColor.blackColor;
-    self.opaque = YES;
-    for (CALayer *sub in [plate.layer.sublayers copy]) if ([sub isKindOfClass:CAGradientLayer.class]) [sub removeFromSuperlayer];
-    NSArray<UIColor *> *pair = SGRLyricsCoverColors();
-    for (int i = 0; i < 2; i++) {
-        UIColor *tint = pair[i];
-        CAGradientLayer *rad = [CAGradientLayer layer];
-        rad.type = kCAGradientLayerRadial;
-        rad.colors = @[(id)[tint colorWithAlphaComponent:0.42].CGColor, (id)[tint colorWithAlphaComponent:0].CGColor];
-        rad.locations = @[@0, @0.6];
-        rad.startPoint = i == 0 ? CGPointMake(0.16, 0.08) : CGPointMake(0.92, 0.92);
-        rad.endPoint = i == 0 ? CGPointMake(0.75, 0.6) : CGPointMake(0.35, 0.35);
-        rad.frame = plate.bounds;
-        [plate.layer addSublayer:rad];
+    } else {
+        self.backgroundColor = plate.backgroundColor;
+        self.opaque = plate.opaque;
     }
 }
 

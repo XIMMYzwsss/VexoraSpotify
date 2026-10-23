@@ -15,6 +15,12 @@
 @property (nonatomic) BOOL extrasHidden;
 // Allows the player to independently hide its translation control.
 @property (nonatomic) BOOL extrasEnabled;
+// The player's lyrics pages paint one backdrop for the whole screen. The view stays clear then.
+@property (nonatomic) BOOL paintsBackdrop;
+// Fills `plate` with the selected fullscreen lyrics background. `plate` is hidden for Original.
+void SGRLyricsPaintBackdrop(UIView *plate);
+// One backdrop for the whole page, behind the lines. `behind` shows only for Original.
+void SGRLyricsFillScreen(UIView *host, UIView *behind);
 // Called as the user begins dragging the lines, for the player to bring its controls back.
 @property (nonatomic, copy) void (^browsingBegan)(void);
 // The preview's song: swaps in other lines, looped over `length` ms, from their start.
