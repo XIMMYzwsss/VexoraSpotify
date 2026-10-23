@@ -341,6 +341,7 @@ void SGRPlayerShowLandscape(BOOL show) {
         sg_window.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
         sg_window.alpha = 0;
         sg_window.rootViewController = [SGRLandscapeLyricsController new];
+        SGRPlayerPortraitLyricsObscured(YES);
         [sg_window makeKeyAndVisible];
         requestOrientations(scene, UIInterfaceOrientationMaskLandscape);
         if (UIInterfaceOrientationIsLandscape(scene.interfaceOrientation)) reveal(sg_window);
@@ -357,6 +358,7 @@ void SGRPlayerShowLandscape(BOOL show) {
         // back meanwhile.
         SGRAnimate(SGRMotionFade, ^{ window.alpha = 0; }, ^(BOOL finished) {
             window.hidden = YES;
+            SGRPlayerPortraitLyricsObscured(NO);
             if (sg_window) return;
             for (UIWindow *other in scene.windows) {
                 if (other != window && !other.hidden && other.windowLevel == UIWindowLevelNormal) {

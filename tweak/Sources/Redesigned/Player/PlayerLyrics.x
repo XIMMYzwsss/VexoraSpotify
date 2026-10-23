@@ -546,6 +546,7 @@ static void syncSingControl(SGRPlayerLyricsOverlay *overlay) {
 @end
 
 static void setAlone(BOOL alone, BOOL animated) {
+    if (sg_open) return;
     UIView *host = sg_host;
     if (alone == sg_alone || !host || (alone && !sg_open)) return;
     SGRLyricsLayout l = layoutIn(host);
@@ -587,108 +588,25 @@ static void setAlone(BOOL alone, BOOL animated) {
 }
 
 static void setOpen(BOOL open, BOOL animated) {
-    UIView *host = sg_host;
+    (void)animated;
     if (open == sg_open) return;
-    if (!host) {
-        SGLog(@"redesign player: the lyrics were asked for before the player laid out");
-        return;
-    }
-    SGRLyricsLayout l = layoutIn(host);
-    if (open && !l.ok) {
-        SGLog(@"redesign player: the lyrics have nowhere to go (stage %.0fx%.0f, lift %.0f)", l.stage.size.width, l.stage.size.height, l.lift);
-        return;
-    }
-    // The thumbnail is the Kit's picture drawn again, and Spotify's cover goes as it appears: without a
-    // picture there would be a hole where the cover was, so the cover stays and the lyrics wait.
-    UIImage *picture = SGRNowPlayingArtwork(NULL, NULL);
-    if (open && !picture) {
-        SGLog(@"redesign player: no artwork read yet, the lyrics stay down");
-        return;
-    }
-    if (!open) setAlone(NO, NO);
+    if (open && !SGRPlayerLyricsAvailable()) return;
     sg_open = open;
     SGRPlayerLyricsChanged();
-
-    SGRPlayerLyricsOverlay *overlay = overlayIn(host);
-    place(overlay, host, l);
-    CGAffineTransform away = thumbTransform(l);
-    // Over an animated artwork the cover is hidden, so the thumbnail fades where it sits rather than flying
-    // to or from an empty slot.
-    BOOL fades = SGRPlayerMotionShowing();
-    // The state it starts from, so the animation has both ends of every value and nothing jumps into it.
-    overlay.thumb.transform = open && !fades ? CGAffineTransformIdentity : away;
-    overlay.thumb.alpha = open && fades ? 0 : 1;
-    overlay.cover.layer.cornerRadius = thumbRadius(l, fades || !open);
-    // Under Reduce Motion the lines only fade, without growing.
-    CGAffineTransform entering = SGRReduceMotion() ? CGAffineTransformIdentity : CGAffineTransformMakeScale(kLyricsEnterScale, kLyricsEnterScale);
-    if (open) {
-        overlay.cover.image = SGRNowPlayingArtwork(NULL, NULL);
-        overlay.stage.alpha = 0;
-        overlay.stage.transform = entering;
-        // Not under VoiceOver, which keeps the controls up, nor under a sheet.
-        overlay.lyrics.browsingBegan = ^{
-            if (!UIAccessibilityIsVoiceOverRunning() && !coveredBySheet()) setAlone(YES, YES);
-        };
-        // Spotify's cover goes the moment the redesign's own takes its place: the same picture at the
-        // same size with the same corners, so there is nothing to see in the swap. Coming back it waits
-        // for the thumbnail to land on it, or the two would be on screen at once, one of them half size.
-        SGRPlayerCoverList().alpha = 0;
-    }
-
-    // Moves and fades apart, as in setAlone: Reduce Motion takes the move and keeps the thumbnail's fade over
-    // an animated artwork and the chips'.
-    void (^move)(void) = ^{
-        overlay.thumb.transform = open || fades ? away : CGAffineTransformIdentity;
-        overlay.cover.layer.cornerRadius = thumbRadius(l, open || fades);
-        placeTitleRow(l);
-    };
-    void (^fade)(void) = ^{
-        overlay.thumb.alpha = !open && fades ? 0 : 1;
-        sg_floating.viewIfLoaded.alpha = open ? 0 : 1;
-    };
-    void (^show)(void) = ^{
-        overlay.stage.alpha = open ? 1 : 0;
-        overlay.stage.transform = open ? CGAffineTransformIdentity : entering;
-    };
-    void (^settled)(BOOL) = ^(BOOL finished) {
-        sg_moving = NO;
-        if (sg_open) return;   // opened again while it was going away
-        SGRSingControlRemoveForPage(overlay.stage);
-        SGRPlayerCoverList().alpha = 1;
-        [overlay removeFromSuperview];
-        SGRPlayerMotionCoverLaidOut();
-    };
-
-    if (!animated) {
-        move();
-        fade();
-        show();
-        settled(YES);
-    } else {
-        sg_moving = YES;
-        // Settled once both the layout transition and the fade are done.
-        __block NSInteger running = 2;
-        void (^done)(BOOL) = ^(BOOL finished) {
-            if (--running == 0) settled(finished);
-        };
-        SGRAnimateLayout(host, move, done);
-        SGRAnimate(SGRMotionFade, fade, done);
-        // The lines come in behind the cover leaving, and go before it comes back.
-        [UIView animateWithDuration:open ? kLyricsIn : kLyricsOut delay:open ? kLyricsInDelay : 0
-                            options:UIViewAnimationOptionCurveEaseInOut | UIViewAnimationOptionBeginFromCurrentState
-                         animations:show completion:nil];
-    }
-    if (open) restartRest();
-    else {
-        [sg_rest invalidate];
-        sg_rest = nil;
-        // The landscape screen shows these lines, so it goes with them (a track without lyrics came on).
+    SGRPlayerShowPortraitLyrics(open);
+    if (!open) {
+        setAlone(NO, NO);
         SGRPlayerShowLandscape(NO);
+        sg_floating.viewIfLoaded.alpha = 1;
+        SGRPlayerCoverList().alpha = 1;
+        if (sg_titleElement) {
+            sg_titleElement.transform = CGAffineTransformIdentity;
+            sg_titleElement.layer.mask = nil;
+        }
+        if (sg_info.viewIfLoaded) sg_info.viewIfLoaded.transform = CGAffineTransformIdentity;
     }
     SGRPlayerMotionCoverLaidOut();
-    SGLog(@"redesign player: lyrics %@, thumbnail %.0fx%.0f at %.0f,%.0f, title row up %.0f and right %.0f, lines %.0fx%.0f",
-          open ? @"up" : @"away", l.thumb.size.width, l.thumb.size.height, l.thumb.origin.x, l.thumb.origin.y,
-          -l.lift, l.shift, l.stage.size.width, l.stage.size.height);
+    SGLog(@"redesign player: lyrics %@", open ? @"on their own page" : @"back on the player");
 }
 
 void SGRPlayerToggleLyrics(void) {
@@ -699,26 +617,11 @@ void SGRPlayerToggleLyrics(void) {
 // A layout pass, a new track or a turn of the phone: the state is put back where it belongs without
 // animating, since the frames it is measured from have just changed.
 static void replace(void) {
+    if (sg_open) return;
     UIView *host = sg_host;
     if (!host || sg_moving) return;   // a pass in the middle of the transition would cut it short
-    SGRLyricsLayout l = layoutIn(host);
-    if (sg_open && !l.ok) return;
-    placeTitleRow(l);
-    sg_floating.viewIfLoaded.alpha = sg_open ? 0 : 1;
-    if (!sg_open) return;
-    SGRPlayerLyricsOverlay *overlay = objc_getAssociatedObject(host, &kOverlayKey);
-    if (!overlay.superview) return;
-    if (overlay.superview == host && host.subviews.lastObject != overlay) [host bringSubviewToFront:overlay];
-    if (sg_alone) {
-        l.stage = aloneStage(host, l);
-        fadeControls(YES);
-    }
-    place(overlay, host, l);
-    overlay.thumb.transform = thumbTransform(l);
-    overlay.cover.layer.cornerRadius = thumbRadius(l, YES);
-    overlay.lyrics.frame = overlay.stage.bounds;
-    SGRPlayerCoverList().alpha = 0;
-    SGRPlayerMotionCoverLaidOut();
+    placeTitleRow(layoutIn(host));
+    sg_floating.viewIfLoaded.alpha = 1;
 }
 
 #pragma mark - the units
@@ -850,6 +753,248 @@ static void replace(void) {
 }
 
 @end
+
+#pragma mark - lyrics page
+
+static const CGFloat kPageCover = 72, kPagePad = 20, kPageGap = 12;
+static UIWindow *sg_portrait;
+
+@interface SGRPortraitLyricsController : UIViewController <SGPlayerStateObserver>
+@end
+
+@implementation SGRPortraitLyricsController {
+    SGRArtworkField *_field;
+    UIImageView *_cover;
+    SGMarqueeLabel *_title, *_artist;
+    UIButton *_close, *_play;
+    UIStackView *_controls;
+    UIView *_stage;
+    SGRKaraokeView *_lyrics;
+    NSTimer *_rest;
+    UIView *_shield;
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.view.backgroundColor = UIColor.blackColor;
+    _field = [[SGRArtworkField alloc] initWithFrame:self.view.bounds];
+    _field.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    _field.showsBackdrop = YES;
+    SGRPlayerApplyBackgroundToField(_field, SGRPlayerBackground());
+    NSString *identity = nil;
+    UIImage *art = SGRNowPlayingArtwork(NULL, &identity);
+    if (art) [_field setArtwork:art identity:identity animated:NO];
+    [self.view addSubview:_field];
+
+    _cover = [UIImageView new];
+    _cover.contentMode = UIViewContentModeScaleAspectFill;
+    _cover.clipsToBounds = YES;
+    _cover.layer.cornerRadius = 10;
+    _cover.layer.cornerCurve = kCACornerCurveContinuous;
+    _cover.image = art;
+    [self.view addSubview:_cover];
+
+    _title = [SGMarqueeLabel new];
+    _title.font = SGRFont(UIFontTextStyleHeadline, UIFontWeightBold, UIContentSizeCategoryExtraExtraLarge);
+    _title.textColor = UIColor.whiteColor;
+    _artist = [SGMarqueeLabel new];
+    _artist.font = SGRFont(UIFontTextStyleSubheadline, UIFontWeightRegular, UIContentSizeCategoryExtraExtraLarge);
+    _artist.textColor = [UIColor colorWithWhite:1 alpha:0.62];
+    [self.view addSubview:_title];
+    [self.view addSubview:_artist];
+
+    _close = [UIButton buttonWithType:UIButtonTypeSystem];
+    [_close setImage:[UIImage systemImageNamed:@"chevron.down" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:18 weight:UIImageSymbolWeightSemibold]] forState:UIControlStateNormal];
+    _close.tintColor = UIColor.whiteColor;
+    _close.accessibilityLabel = @"Close lyrics";
+    [_close addTarget:self action:@selector(close) forControlEvents:UIControlEventTouchUpInside];
+    [self.view addSubview:_close];
+
+    _play = [UIButton buttonWithType:UIButtonTypeSystem];
+    _play.tintColor = UIColor.whiteColor;
+    [_play addTarget:self action:@selector(togglePlay) forControlEvents:UIControlEventTouchUpInside];
+    UIButton *previous = [self transport:@"backward.fill" label:@"Previous track" action:@selector(previous)];
+    UIButton *next = [self transport:@"forward.fill" label:@"Next track" action:@selector(next)];
+    [_play setImage:[UIImage systemImageNamed:@"pause.fill" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:28 weight:UIImageSymbolWeightBold]] forState:UIControlStateNormal];
+    _controls = [[UIStackView alloc] initWithArrangedSubviews:@[previous, _play, next]];
+    _controls.distribution = UIStackViewDistributionEqualSpacing;
+    _controls.alignment = UIStackViewAlignmentCenter;
+    [self.view addSubview:_controls];
+
+    _stage = [UIView new];
+    [self.view addSubview:_stage];
+    _lyrics = [[SGRKaraokeView alloc] initWithFrame:CGRectZero];
+    _lyrics.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    _lyrics.extrasEnabled = SGEnabled(SGRKeyPlayerTranslateButton);
+    [_stage addSubview:_lyrics];
+
+    _shield = [UIView new];
+    _shield.accessibilityElementsHidden = YES;
+    [_shield addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(wake)]];
+    UIPanGestureRecognizer *pull = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(pulled:)];
+    [self.view addGestureRecognizer:pull];
+
+    SGAddPlayerStateObserver(self);
+    [self playerStateDidChange:SGPlayerState()];
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(artworkChanged) name:SGRNowPlayingArtworkDidChangeNotification object:nil];
+}
+
+- (UIButton *)transport:(NSString *)symbol label:(NSString *)label action:(SEL)action {
+    UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
+    [button setImage:[UIImage systemImageNamed:symbol withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:22 weight:UIImageSymbolWeightBold]] forState:UIControlStateNormal];
+    button.tintColor = UIColor.whiteColor;
+    button.accessibilityLabel = label;
+    [button addTarget:self action:action forControlEvents:UIControlEventTouchUpInside];
+    return button;
+}
+
+- (void)dealloc {
+    [NSNotificationCenter.defaultCenter removeObserver:self];
+    [_rest invalidate];
+}
+
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    CGRect safe = UIEdgeInsetsInsetRect(self.view.bounds, self.view.safeAreaInsets);
+    CGFloat top = CGRectGetMinY(safe) + 8;
+    _cover.frame = CGRectMake(CGRectGetMinX(safe) + kPagePad, top, kPageCover, kPageCover);
+    _close.frame = CGRectMake(CGRectGetMaxX(safe) - kPagePad - 44, top, 44, 44);
+    CGFloat textX = CGRectGetMaxX(_cover.frame) + kPageGap;
+    CGFloat textW = CGRectGetMinX(_close.frame) - textX - 8;
+    CGFloat titleH = ceil(_title.font.lineHeight), artistH = ceil(_artist.font.lineHeight);
+    CGFloat textY = top + (kPageCover - titleH - artistH) / 2;
+    _title.frame = CGRectMake(textX, textY, textW, titleH);
+    _artist.frame = CGRectMake(textX, CGRectGetMaxY(_title.frame), textW, artistH);
+    CGFloat controlsH = 52;
+    _controls.frame = CGRectMake(CGRectGetMinX(safe) + 36, CGRectGetMaxY(safe) - controlsH - 8, safe.size.width - 72, controlsH);
+    CGFloat stageY = CGRectGetMaxY(_cover.frame) + 16;
+    _stage.frame = CGRectMake(0, stageY, self.view.bounds.size.width, CGRectGetMinY(_controls.frame) - 8 - stageY);
+    _lyrics.frame = _stage.bounds;
+    _shield.frame = self.view.bounds;
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    [self restartRest];
+}
+
+- (id<SPTPlayer>)player {
+    id player = SGKaraokePlayer();
+    return [player respondsToSelector:@selector(pause:)] ? player : nil;
+}
+
+- (void)togglePlay {
+    if (SGPlayerState().isPaused) [self.player resume:nil];
+    else [self.player pause:nil];
+    [self restartRest];
+}
+
+- (void)previous {
+    [self.player skipToPreviousTrackWithOptions:nil];
+    [self restartRest];
+}
+
+- (void)next {
+    [self.player skipToNextTrackWithOptions:nil];
+    [self restartRest];
+}
+
+- (void)close {
+    SGRPlayerToggleLyrics();
+}
+
+- (void)pulled:(UIPanGestureRecognizer *)pan {
+    if (pan.state == UIGestureRecognizerStateEnded && [pan translationInView:self.view].y > 90) [self close];
+}
+
+- (void)artworkChanged {
+    NSString *identity = nil;
+    UIImage *art = SGRNowPlayingArtwork(NULL, &identity);
+    if (!art) return;
+    _cover.image = art;
+    [_field setArtwork:art identity:identity animated:YES];
+}
+
+- (void)playerStateDidChange:(SPTPlayerState *)state {
+    if (!state) return;
+    _title.text = state.track.trackTitle;
+    _artist.text = state.track.artistName;
+    BOOL paused = state.isPaused;
+    [_play setImage:[UIImage systemImageNamed:paused ? @"play.fill" : @"pause.fill" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:28 weight:UIImageSymbolWeightBold]] forState:UIControlStateNormal];
+    _play.accessibilityLabel = paused ? @"Play" : @"Pause";
+    _field.motionHeld = paused;
+    if (paused) [self setControlsShown:YES];
+    else if (!_rest && !_shield.superview) [self restartRest];
+}
+
+- (void)setControlsShown:(BOOL)shown {
+    [_rest invalidate];
+    _rest = nil;
+    if (shown) [_shield removeFromSuperview];
+    else if (!_shield.superview) [self.view addSubview:_shield];
+    SGRAnimate(shown ? SGRMotionRespond : SGRMotionFade, ^{
+        self->_controls.alpha = shown ? 1 : 0;
+        self->_close.alpha = shown ? 1 : 0;
+        self->_lyrics.extrasHidden = !shown;
+    }, nil);
+    if (shown) [self restartRest];
+}
+
+- (void)wake {
+    [self setControlsShown:YES];
+}
+
+- (void)restartRest {
+    [_rest invalidate];
+    if (!SGEnabled(SGRKeyLyricsAutoHide) || SGPlayerState().isPaused || UIAccessibilityIsVoiceOverRunning()) return;
+    __weak SGRPortraitLyricsController *weakSelf = self;
+    _rest = [NSTimer scheduledTimerWithTimeInterval:kRest repeats:NO block:^(NSTimer *timer) {
+        (void)timer;
+        if (!UIAccessibilityIsVoiceOverRunning()) [weakSelf setControlsShown:NO];
+    }];
+}
+
+@end
+
+static void restoreKeyWindow(UIWindow *leaving) {
+    for (UIWindow *other in leaving.windowScene.windows) {
+        if (other != leaving && !other.hidden && other.windowLevel <= UIWindowLevelNormal) {
+            [other makeKeyWindow];
+            return;
+        }
+    }
+}
+
+void SGRPlayerPortraitLyricsObscured(BOOL obscured) {
+    if (!sg_portrait) return;
+    sg_portrait.hidden = obscured;
+    if (!obscured) [sg_portrait makeKeyAndVisible];
+}
+
+void SGRPlayerShowPortraitLyrics(BOOL show) {
+    UIWindowScene *scene = (UIWindowScene *)UIApplication.sharedApplication.connectedScenes.anyObject;
+    if (![scene isKindOfClass:UIWindowScene.class]) return;
+    if (show && !sg_portrait) {
+        sg_portrait = [[UIWindow alloc] initWithWindowScene:scene];
+        sg_portrait.windowLevel = UIWindowLevelNormal + 1;
+        sg_portrait.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+        sg_portrait.alpha = 0;
+        sg_portrait.rootViewController = [SGRPortraitLyricsController new];
+        [sg_portrait makeKeyAndVisible];
+        SGRAnimate(SGRMotionFade, ^{ sg_portrait.alpha = 1; }, nil);
+        SGLog(@"redesign player: lyrics page up");
+    } else if (!show && sg_portrait) {
+        UIWindow *window = sg_portrait;
+        sg_portrait = nil;
+        window.userInteractionEnabled = NO;
+        SGRAnimate(SGRMotionFade, ^{ window.alpha = 0; }, ^(BOOL finished) {
+            (void)finished;
+            window.hidden = YES;
+            restoreKeyWindow(window);
+        });
+        SGLog(@"redesign player: lyrics page down");
+    }
+}
 
 static SGRPlayerLyricsWatcher *sg_watcher;
 
