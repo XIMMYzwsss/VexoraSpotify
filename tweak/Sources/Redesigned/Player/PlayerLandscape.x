@@ -5,9 +5,10 @@
 // side; the screen stays shut then until the phone has stood upright again.
 //
 // Spotify's iPhone Info.plist allows portrait only, and UIKit asks the app delegate's
-// -application:supportedInterfaceOrientationsForWindow: in its place where there is one. So the delegate
-// answers landscape for this screen's own window and portrait for every other, and the scene is asked to
-// turn while the window is up. Spotify's own windows never turn.
+// -application:supportedInterfaceOrientationsForWindow: in its place where there is one. The delegate
+// answers landscape for the sideways lyrics window and every other direction for the rest of the app.
+// View controllers that answer portrait on their own are answered for here too, or the scene would stay
+// upright. The sideways lyrics screen still takes the phone over while it is up.
 #import <objc/runtime.h>
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
@@ -302,15 +303,48 @@ static UIButton *controlButton(NSString *symbol, CGFloat size, NSString *label, 
 
 #pragma mark - turning
 
-static UIInterfaceOrientationMask (*sg_origOrientations)(id, SEL, UIApplication *, UIWindow *);
-
 static UIInterfaceOrientationMask orientationsFor(id self, SEL _cmd, UIApplication *application, UIWindow *window) {
+    (void)self; (void)_cmd; (void)application;
     if (window && window == sg_window) return UIInterfaceOrientationMaskLandscape;
-    return sg_origOrientations ? sg_origOrientations(self, _cmd, application, window) : UIInterfaceOrientationMaskPortrait;
+    return UIInterfaceOrientationMaskAllButUpsideDown;
 }
 
-// The delegate's own answer stays for every window but the landscape one; one that has none answers
-// portrait, which is what the Info.plist said.
+static UIInterfaceOrientationMask anyOrientation(id self, SEL _cmd) {
+    (void)self; (void)_cmd;
+    return UIInterfaceOrientationMaskAllButUpsideDown;
+}
+
+static BOOL allowAutorotate(id self, SEL _cmd) {
+    (void)self; (void)_cmd;
+    return YES;
+}
+
+// A portrait answer on a controller keeps the whole scene upright, whichever window asked. Replace each
+// controller's own answer once. The sideways lyrics screen keeps the one it implements.
+static void allowHorizontalLayout(void) {
+    int count = objc_getClassList(NULL, 0);
+    if (count <= 0) return;
+    Class *classes = malloc(sizeof(Class) * (unsigned)count);
+    int written = objc_getClassList(classes, count);
+    if (written < count) count = written;
+    Class landscape = [SGRLandscapeLyricsController class];
+    for (int i = 0; i < count; i++) {
+        Class cls = classes[i];
+        if (cls == landscape || ![cls isSubclassOfClass:[UIViewController class]]) continue;
+        unsigned int methods = 0;
+        Method *list = class_copyMethodList(cls, &methods);
+        for (unsigned int m = 0; m < methods; m++) {
+            SEL sel = method_getName(list[m]);
+            if (sel == @selector(supportedInterfaceOrientations)) method_setImplementation(list[m], (IMP)anyOrientation);
+            else if (sel == @selector(shouldAutorotate)) method_setImplementation(list[m], (IMP)allowAutorotate);
+        }
+        free(list);
+    }
+    free(classes);
+}
+
+// The delegate's answer replaces the portrait-only Info.plist. The sideways lyrics window stays landscape;
+// every other window can turn with the phone.
 static void answerForOrientations(void) {
     static BOOL done;
     id delegate = UIApplication.sharedApplication.delegate;
@@ -318,9 +352,9 @@ static void answerForOrientations(void) {
     done = YES;
     SEL selector = @selector(application:supportedInterfaceOrientationsForWindow:);
     Method method = class_getInstanceMethod([delegate class], selector);
-    if (method) sg_origOrientations = (void *)method_setImplementation(method, (IMP)orientationsFor);
+    if (method) method_setImplementation(method, (IMP)orientationsFor);
     else class_addMethod([delegate class], selector, (IMP)orientationsFor, "Q@:@@");
-    SGLog(@"redesign player: landscape lyrics answer for %@ (%@)", NSStringFromClass([delegate class]), method ? @"its own answer kept" : @"portrait otherwise");
+    SGLog(@"redesign player: horizontal layout answer for %@", NSStringFromClass([delegate class]));
 }
 
 // A landscape window still clear when no turn is coming to fade it in.
@@ -362,7 +396,7 @@ void SGRPlayerShowLandscape(BOOL show) {
         // A sheet up over the lines (a line's meanings) goes with them, or it would be left on a hidden window.
         [window.rootViewController dismissViewControllerAnimated:NO completion:nil];
         if (@available(iOS 16.0, *)) [window.rootViewController setNeedsUpdateOfSupportedInterfaceOrientations];
-        requestOrientations(scene, UIInterfaceOrientationMaskPortrait);
+        requestOrientations(scene, UIInterfaceOrientationMaskAllButUpsideDown);
         // Faded out as the scene turns back; the player is key again once it is gone, unless the lines came
         // back meanwhile.
         SGRAnimate(SGRMotionFade, ^{ window.alpha = 0; }, ^(BOOL finished) {
@@ -397,6 +431,13 @@ void SGRPlayerLyricsOrientationChanged(void) {
 %ctor {
     if (!SGRedesignedUI()) return;
     dispatch_async(dispatch_get_main_queue(), ^{
+        answerForOrientations();
+        allowHorizontalLayout();
+        for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+            if (![scene isKindOfClass:UIWindowScene.class]) continue;
+            for (UIWindow *window in ((UIWindowScene *)scene).windows)
+                if (@available(iOS 16.0, *)) [window.rootViewController setNeedsUpdateOfSupportedInterfaceOrientations];
+        }
         [UIDevice.currentDevice beginGeneratingDeviceOrientationNotifications];
         [NSNotificationCenter.defaultCenter addObserverForName:UIDeviceOrientationDidChangeNotification object:nil queue:nil
                                                     usingBlock:^(NSNotification *note) { orientationChanged(); }];

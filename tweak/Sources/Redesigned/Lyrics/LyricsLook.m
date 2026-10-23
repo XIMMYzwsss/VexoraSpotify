@@ -184,23 +184,16 @@ static void drawRing(UIImage *stamp, CGFloat pad, CGFloat reach) {
 
 static UIImage *outlinedSymbol(NSString *name, CGFloat pointSize, UIImageSymbolWeight weight) {
     UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:pointSize weight:weight];
-    UIColor *fill = UIColor.whiteColor, *stroke = SGRLyricsOutlineColor();
-    UIImage *glyph = [[UIImage systemImageNamed:name withConfiguration:config] imageWithTintColor:fill renderingMode:UIImageRenderingModeAlwaysOriginal];
+    UIImage *glyph = [[UIImage systemImageNamed:name withConfiguration:config] imageWithTintColor:UIColor.whiteColor renderingMode:UIImageRenderingModeAlwaysOriginal];
+    UIImage *stamp = [[UIImage systemImageNamed:name withConfiguration:config] imageWithTintColor:UIColor.blackColor renderingMode:UIImageRenderingModeAlwaysOriginal];
     if (!glyph) return nil;
-    UIImage *(^tinted)(UIColor *) = ^UIImage *(UIColor *color) {
-        return [[UIImage systemImageNamed:name withConfiguration:config] imageWithTintColor:color renderingMode:UIImageRenderingModeAlwaysOriginal];
-    };
-    CGFloat r = 0, g = 0, b = 0, a = 0;
-    [stroke getRed:&r green:&g blue:&b alpha:&a];
-    BOOL separate = 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.62;
-    CGFloat reach = separate ? 2.1 : 1.15;
-    CGFloat pad = reach + 0.5;
+    // The controls are white, so the ring around them is black. A white ring only made them look heavier.
+    CGFloat reach = 1.15, pad = reach + 0.5;
     CGSize size = CGSizeMake(glyph.size.width + pad * 2, glyph.size.height + pad * 2);
     UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:size];
     return [renderer imageWithActions:^(UIGraphicsImageRendererContext *ctx) {
         (void)ctx;
-        if (separate) drawRing(tinted(UIColor.blackColor), pad, 1.05);
-        drawRing(tinted(stroke), pad, reach);
+        drawRing(stamp, pad, reach);
         [glyph drawAtPoint:CGPointMake(pad, pad)];
     }];
 }
