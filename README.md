@@ -1,6 +1,6 @@
 <h1 align="center">VexoraSpotify</h1>
 
-<p align="center">by Ximmy. A fork of <a href="https://github.com/skopevoj/spoti.pw">spoti.pw</a> (chroma.pw) by darkk. Liquid glass Spotify for iPhone, injected into your own decrypted IPA.</p>
+<p align="center">by Ximmy. A fork of <a href="https://spoti.pw">spoti.pw</a> (<a href="https://chroma.pw">chroma.pw</a>) by darkk. Liquid glass Spotify for iPhone, injected into your own decrypted IPA.</p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/iOS-000000?style=for-the-badge&logo=ios&logoColor=white" alt="iOS">
@@ -81,7 +81,7 @@ Pull requests are welcome. The pull request description has a box for the [Contr
 
 ## Credits
 
-VexoraSpotify is by Ximmy. It is a fork of [spoti.pw](https://github.com/skopevoj/spoti.pw) / [chroma.pw](https://chroma.pw) by darkk. Settings credit @Pulse-Ice (EeveeImmersive).
+VexoraSpotify is by Ximmy. It is a fork of [spoti.pw](https://spoti.pw) / [chroma.pw](https://chroma.pw) by darkk. Settings credit @Pulse-Ice (EeveeImmersive).
 
 [cyan](https://github.com/asdfzxcvbn/pyzule-rw) injects, [Theos](https://theos.dev) builds, and [FLEX](https://github.com/FLEXTool/FLEX), as hopeless's AutoFLEX build in `vendor/`, is the inspector the view trees are read through.
 
