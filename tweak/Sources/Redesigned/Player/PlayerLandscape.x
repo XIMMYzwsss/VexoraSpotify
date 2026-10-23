@@ -324,7 +324,7 @@ static BOOL allowAutorotate(id self, SEL _cmd) {
 static void allowHorizontalLayout(void) {
     int count = objc_getClassList(NULL, 0);
     if (count <= 0) return;
-    Class *classes = malloc(sizeof(Class) * (unsigned)count);
+    Class *classes = (Class *)malloc(sizeof(Class) * (unsigned)count);
     int written = objc_getClassList(classes, count);
     if (written < count) count = written;
     Class landscape = [SGRLandscapeLyricsController class];
