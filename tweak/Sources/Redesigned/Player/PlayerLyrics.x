@@ -44,8 +44,6 @@ static const CGFloat kLyricsTop = 20;          // between the title row and the 
 static const CGFloat kLyricsBottom = 8;        // above the progress bar
 // The lines are a surface arriving, not something moving: they come up from just under full size as the
 // room for them opens, and go at once when it closes. An exit the eye waits through reads as a stall.
-static const CGFloat kLyricsEnterScale = 0.96;
-static const NSTimeInterval kLyricsIn = 0.3, kLyricsInDelay = 0.12, kLyricsOut = 0.16;
 // A track that changes while the lines are up has this long to bring its own before they are put away. A
 // look for them still running then is waited out, since a local file's sources are asked one after another,
 // up to 6 s each, with a Musixmatch token fetched first the first time.
@@ -147,21 +145,6 @@ static void restartRest(void);
 }
 
 @end
-
-static SGRPlayerLyricsOverlay *overlayIn(UIView *host) {
-    SGRPlayerLyricsOverlay *overlay = objc_getAssociatedObject(host, &kOverlayKey);
-    if (!overlay) {
-        overlay = [[SGRPlayerLyricsOverlay alloc] initWithFrame:host.bounds];
-        objc_setAssociatedObject(host, &kOverlayKey, overlay, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
-    // On top of the player: it reaches from under the header row down to the progress bar, so it is over
-    // the covers and the gradients and clear of every control. Under them instead, the mixing background
-    // Spotify keeps between the two (01.txt:72) would be free to draw over the lines.
-    // Kept on top here and in replace(): Spotify adds Mix's transition cards later, over the lines.
-    if (overlay.superview != host) [host addSubview:overlay];
-    else if (host.subviews.lastObject != overlay) [host bringSubviewToFront:overlay];
-    return overlay;
-}
 
 #pragma mark - the measurements
 
@@ -304,14 +287,6 @@ static CGAffineTransform thumbTransform(SGRLyricsLayout l) {
     CGAffineTransform move = CGAffineTransformMakeTranslation(round(CGRectGetMidX(l.thumb) - CGRectGetMidX(l.cover)),
                                                              round(CGRectGetMidY(l.thumb) - CGRectGetMidY(l.cover)));
     return CGAffineTransformConcat(CGAffineTransformMakeScale(scale, scale), move);
-}
-
-// The corners as they will be drawn: a radius under a scale is drawn scaled, so the thumbnail asks for
-// the radius it wants divided by the shrink, and the two ends of the animation are 12pt and 8pt corners.
-static CGFloat thumbRadius(SGRLyricsLayout l, BOOL open) {
-    if (!open) return SGRRadiusArtwork;
-    CGFloat scale = l.cover.size.width > 0 ? l.thumb.size.width / l.cover.size.width : 1;
-    return scale > 0 ? SGRRadiusCover / scale : SGRRadiusArtwork;
 }
 
 #pragma mark - the lines on their own
