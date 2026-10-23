@@ -319,8 +319,26 @@ static BOOL allowAutorotate(id self, SEL _cmd) {
     return YES;
 }
 
-// A portrait answer on a controller keeps the whole scene upright, whichever window asked. Replace each
-// controller's own answer once. The sideways lyrics screen keeps the one it implements.
+// A portrait answer on a controller keeps the whole scene upright. Only the app's own controllers are
+// changed, and only by walking their superclasses, which does not message the class. Messaging every
+// class in the process at launch is what closed the app as it opened. The sideways lyrics screen keeps
+// the answer it implements.
+static BOOL inheritsViewController(Class cls) {
+    for (Class c = cls; c; c = class_getSuperclass(c))
+        if (c == [UIViewController class]) return YES;
+    return NO;
+}
+
+static BOOL textHas(const char *text, const char *part) {
+    if (!text || !part || !*part) return NO;
+    for (const char *at = text; *at; at++) {
+        const char *a = at, *b = part;
+        while (*a && *b && *a == *b) { a++; b++; }
+        if (!*b) return YES;
+    }
+    return NO;
+}
+
 static void allowHorizontalLayout(void) {
     int count = objc_getClassList(NULL, 0);
     if (count <= 0) return;
@@ -330,7 +348,10 @@ static void allowHorizontalLayout(void) {
     Class landscape = [SGRLandscapeLyricsController class];
     for (int i = 0; i < count; i++) {
         Class cls = classes[i];
-        if (cls == landscape || ![cls isSubclassOfClass:[UIViewController class]]) continue;
+        if (!cls || cls == landscape || class_isMetaClass(cls)) continue;
+        const char *image = class_getImageName(cls);
+        if (!textHas(image, "Spotify") && !textHas(image, "spotifyglass")) continue;
+        if (!inheritsViewController(cls)) continue;
         unsigned int methods = 0;
         Method *list = class_copyMethodList(cls, &methods);
         for (unsigned int m = 0; m < methods; m++) {
@@ -433,13 +454,27 @@ void SGRPlayerLyricsOrientationChanged(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
         answerForOrientations();
         allowHorizontalLayout();
-        for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
-            if (![scene isKindOfClass:UIWindowScene.class]) continue;
-            for (UIWindow *window in ((UIWindowScene *)scene).windows)
-                if (@available(iOS 16.0, *)) [window.rootViewController setNeedsUpdateOfSupportedInterfaceOrientations];
-        }
         [UIDevice.currentDevice beginGeneratingDeviceOrientationNotifications];
         [NSNotificationCenter.defaultCenter addObserverForName:UIDeviceOrientationDidChangeNotification object:nil queue:nil
                                                     usingBlock:^(NSNotification *note) { orientationChanged(); }];
     });
 }
+
+%hook UIViewController
+- (UIInterfaceOrientationMask)supportedInterfaceOrientations {
+    UIInterfaceOrientationMask mask = %orig;
+    if (mask & (UIInterfaceOrientationMaskLandscapeLeft | UIInterfaceOrientationMaskLandscapeRight)) return mask;
+    return mask | UIInterfaceOrientationMaskLandscapeLeft | UIInterfaceOrientationMaskLandscapeRight;
+}
+- (BOOL)shouldAutorotate { return YES; }
+%end
+
+%hook UINavigationController
+- (UIInterfaceOrientationMask)supportedInterfaceOrientations { return UIInterfaceOrientationMaskAllButUpsideDown; }
+- (BOOL)shouldAutorotate { return YES; }
+%end
+
+%hook UITabBarController
+- (UIInterfaceOrientationMask)supportedInterfaceOrientations { return UIInterfaceOrientationMaskAllButUpsideDown; }
+- (BOOL)shouldAutorotate { return YES; }
+%end
