@@ -256,7 +256,9 @@ static UIViewPropertyAnimator *setBlurIntensity(UIVisualEffectView *view, UIView
     CGRect bounds = self.bounds;
     CGFloat width = bounds.size.width, total = MAX(1, bounds.size.height);
     CGFloat screen = _screenHeight > 0 ? _screenHeight : total;
-    CGFloat height = round(width * _aspect);
+    // Wider than tall would be a short band at the top. It takes the same square the other clips do,
+    // and the picture fills that square from the middle.
+    CGFloat height = round(width * MAX(_aspect, 1));
     if (_aspect > kCanvasAspect) height = MAX(height, screen);
     CGFloat seam = round(height * kFootFrom), blurFrom = MIN(seam, round(screen * kBlurByControls));
     _picture.frame = bounds;
