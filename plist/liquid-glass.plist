@@ -10,12 +10,6 @@
 	<true/>
 	<key>MusicHapticsSupported</key>
 	<true/>
-	<key>UISupportedInterfaceOrientations</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
 	<key>NSMotionUsageDescription</key>
 	<string>Move your head with AirPods in to like a song or change track.</string>
 	<key>NSBonjourServices</key>

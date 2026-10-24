@@ -733,10 +733,11 @@ static void replace(void) {
 #pragma mark - lyrics page
 
 static const CGFloat kPageCover = 72, kPagePad = 20, kPageGap = 12;
-static UIWindow *sg_portrait;
 
 @interface SGRPortraitLyricsController : UIViewController <SGPlayerStateObserver>
 @end
+
+static SGRPortraitLyricsController *sg_page;
 
 @implementation SGRPortraitLyricsController {
     SGRArtworkField *_field;
@@ -748,6 +749,14 @@ static UIWindow *sg_portrait;
     SGRKaraokeView *_lyrics;
     NSTimer *_rest;
     UIView *_shield;
+}
+
+- (UIInterfaceOrientationMask)supportedInterfaceOrientations {
+    return UIInterfaceOrientationMaskPortrait;
+}
+
+- (BOOL)shouldAutorotate {
+    return NO;
 }
 
 - (void)viewDidLoad {
@@ -951,41 +960,54 @@ static UIWindow *sg_portrait;
 
 @end
 
-static void restoreKeyWindow(UIWindow *leaving) {
-    for (UIWindow *other in leaving.windowScene.windows) {
-        if (other != leaving && !other.hidden && other.windowLevel <= UIWindowLevelNormal) {
-            [other makeKeyWindow];
-            return;
-        }
+static UIWindowScene *phoneScene(void) {
+    UIWindowScene *fallback = nil;
+    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+        if (![scene isKindOfClass:UIWindowScene.class]) continue;
+        if (!fallback) fallback = (UIWindowScene *)scene;
+        if (scene.activationState == UISceneActivationStateForegroundActive) return (UIWindowScene *)scene;
     }
+    return fallback;
+}
+
+static UIWindow *hostWindow(UIWindowScene *scene) {
+    for (UIWindow *window in scene.windows) if (window.isKeyWindow && !window.hidden) return window;
+    for (UIWindow *window in scene.windows) if (!window.hidden && window.windowLevel <= UIWindowLevelNormal) return window;
+    return nil;
 }
 
 void SGRPlayerPortraitLyricsObscured(BOOL obscured) {
-    if (!sg_portrait) return;
-    sg_portrait.hidden = obscured;
-    if (!obscured) [sg_portrait makeKeyAndVisible];
+    sg_page.view.hidden = obscured;
 }
 
+// A second window made key is what UIKit rejects once the app has been allowed to turn. The page is a
+// child of the window already on screen, so opening it does not ask the scene to rotate.
 void SGRPlayerShowPortraitLyrics(BOOL show) {
-    UIWindowScene *scene = (UIWindowScene *)UIApplication.sharedApplication.connectedScenes.anyObject;
-    if (![scene isKindOfClass:UIWindowScene.class]) return;
-    if (show && !sg_portrait) {
-        sg_portrait = [[UIWindow alloc] initWithWindowScene:scene];
-        sg_portrait.windowLevel = UIWindowLevelNormal + 1;
-        sg_portrait.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-        sg_portrait.alpha = 0;
-        sg_portrait.rootViewController = [SGRPortraitLyricsController new];
-        [sg_portrait makeKeyAndVisible];
-        SGRAnimate(SGRMotionFade, ^{ sg_portrait.alpha = 1; }, nil);
+    if (!phoneScene()) return;
+    if (show && !sg_page) {
+        UIWindow *host = hostWindow(phoneScene());
+        UIViewController *parent = host.rootViewController;
+        if (!host || !parent) return;
+        SGRPortraitLyricsController *page = [SGRPortraitLyricsController new];
+        page.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+        [parent addChildViewController:page];
+        page.view.frame = host.bounds;
+        page.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        page.view.alpha = 0;
+        [host addSubview:page.view];
+        [page didMoveToParentViewController:parent];
+        sg_page = page;
+        SGRAnimate(SGRMotionFade, ^{ page.view.alpha = 1; }, nil);
         SGLog(@"redesign player: lyrics page up");
-    } else if (!show && sg_portrait) {
-        UIWindow *window = sg_portrait;
-        sg_portrait = nil;
-        window.userInteractionEnabled = NO;
-        SGRAnimate(SGRMotionFade, ^{ window.alpha = 0; }, ^(BOOL finished) {
+    } else if (!show && sg_page) {
+        SGRPortraitLyricsController *page = sg_page;
+        sg_page = nil;
+        page.view.userInteractionEnabled = NO;
+        SGRAnimate(SGRMotionFade, ^{ page.view.alpha = 0; }, ^(BOOL finished) {
             (void)finished;
-            window.hidden = YES;
-            restoreKeyWindow(window);
+            [page willMoveToParentViewController:nil];
+            [page.view removeFromSuperview];
+            [page removeFromParentViewController];
         });
         SGLog(@"redesign player: lyrics page down");
     }
