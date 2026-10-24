@@ -67,9 +67,9 @@ static SGModSection *topSection(NSString *title, NSArray<SGStatEntry *> *entries
 
 // Added up once, as the page opens: the rows hand back what was worked out then.
 static UIViewController *periodPage(NSString *title, int64_t since) {
-    NSArray<SGPlay *> *plays = SGListeningLog().plays;
-    attachPlaylistNames(plays);
-    SGStats *stats = SGStatsSince(plays, since, 25);
+    NSArray<SGPlay *> *logged = SGListeningLog().plays;
+    attachPlaylistNames(logged);
+    SGStats *stats = SGStatsSince(logged, since, 25);
     NSString *time = duration(stats.ms), *plays = playsText(stats.plays);
     return [[SGModPage alloc] initWithTitle:title intro:nil sections:@[
         SGSection(nil, @[
