@@ -59,6 +59,8 @@ static SGPlay *playFrom(NSDictionary *row) {
     play.title = title;
     play.artist = artist;
     play.album = album;
+    play.playlistURI = @"";
+    play.playlist = @"";
     return play;
 }
 
@@ -136,8 +138,8 @@ static NSString *field(NSString *text) {
 }
 
 static NSString *lineOf(SGPlay *play) {
-    return [NSString stringWithFormat:@"%lld\t%lld\t%@\t%@\t%@\t%@\n", play.end, play.ms, field(play.uri), field(play.title),
-            field(play.artist), field(play.album)];
+    return [NSString stringWithFormat:@"%lld\t%lld\t%@\t%@\t%@\t%@\t%@\t%@\n", play.end, play.ms, field(play.uri), field(play.title),
+            field(play.artist), field(play.album), field(play.playlistURI), field(play.playlist)];
 }
 
 static NSString *keyOf(SGPlay *play) {
@@ -168,6 +170,8 @@ static NSString *keyOf(SGPlay *play) {
         play.title = f[3];
         play.artist = f[4];
         play.album = f[5];
+        play.playlistURI = f.count > 6 ? f[6] : @"";
+        play.playlist = f.count > 7 ? f[7] : @"";
         [_plays addObject:play];
     }
     return _plays;
@@ -248,7 +252,7 @@ static void count(NSMutableDictionary<NSString *, SGStatEntry *> *entries, NSStr
 // differ between its single and its album.
 SGStats *SGStatsSince(NSArray<SGPlay *> *plays, int64_t since, NSUInteger top) {
     NSMutableDictionary<NSString *, SGStatEntry *> *tracks = [NSMutableDictionary dictionary], *artists = [NSMutableDictionary dictionary],
-                                                   *albums = [NSMutableDictionary dictionary];
+                                                   *albums = [NSMutableDictionary dictionary], *playlists = [NSMutableDictionary dictionary];
     SGStats *stats = [SGStats new];
     for (SGPlay *play in plays) {
         if (play.end < since) continue;
@@ -258,9 +262,14 @@ SGStats *SGStatsSince(NSArray<SGPlay *> *plays, int64_t since, NSUInteger top) {
         count(tracks, keyOf(play), play.title, play.artist, play);
         count(artists, artist, play.artist, nil, play);
         if (play.album.length) count(albums, [NSString stringWithFormat:@"%@\x1f%@", play.album.lowercaseString, artist], play.album, play.artist, play);
+        if (play.playlistURI.length) {
+            NSString *name = play.playlist.length ? play.playlist : play.playlistURI;
+            count(playlists, play.playlistURI.lowercaseString, name, nil, play);
+        }
     }
     stats.tracks = topOf(tracks, top);
     stats.artists = topOf(artists, top);
     stats.albums = topOf(albums, top);
+    stats.playlists = topOf(playlists, top);
     return stats;
 }

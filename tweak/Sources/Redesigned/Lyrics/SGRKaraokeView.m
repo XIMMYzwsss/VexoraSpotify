@@ -1546,14 +1546,22 @@ void SGRLyricsFillScreen(UIView *host, UIView *behind) {
         plate.tag = kTag;
         plate.userInteractionEnabled = NO;
         plate.clipsToBounds = YES;
+    }
+    // Reordering on every layout pass re-enters layout until the page dies as it opens.
+    if (plate.superview != host) {
         if (behind.superview == host) [host insertSubview:plate aboveSubview:behind];
         else [host insertSubview:plate atIndex:0];
+    } else if (behind.superview == host) {
+        NSUInteger plateIndex = [host.subviews indexOfObject:plate];
+        NSUInteger behindIndex = [host.subviews indexOfObject:behind];
+        if (plateIndex != NSNotFound && behindIndex != NSNotFound && plateIndex != behindIndex + 1)
+            [host insertSubview:plate aboveSubview:behind];
     }
-    plate.frame = host.bounds;
+    if (!CGRectEqualToRect(plate.frame, host.bounds)) plate.frame = host.bounds;
     plate.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    if (behind.superview == host) [host insertSubview:plate aboveSubview:behind];
     SGRLyricsPaintBackdrop(plate);
-    if (behind) behind.hidden = !plate.hidden;
+    BOOL hideBehind = !plate.hidden;
+    if (behind && behind.hidden != hideBehind) behind.hidden = hideBehind;
 }
 
 void SGRLyricsPaintBackdrop(UIView *plate) {
@@ -1617,11 +1625,11 @@ void SGRLyricsPaintBackdrop(UIView *plate) {
         plate.tag = kTag;
         plate.userInteractionEnabled = NO;
         plate.clipsToBounds = YES;
-        [self insertSubview:plate atIndex:0];
     }
-    plate.frame = self.bounds;
+    if (plate.superview != self) [self insertSubview:plate atIndex:0];
+    else if (self.subviews.firstObject != plate) [self sendSubviewToBack:plate];
+    if (!CGRectEqualToRect(plate.frame, self.bounds)) plate.frame = self.bounds;
     plate.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    [self sendSubviewToBack:plate];
     SGRLyricsPaintBackdrop(plate);
     if (plate.hidden) {
         self.backgroundColor = UIColor.clearColor;
@@ -2318,6 +2326,11 @@ static BOOL lyricsAreForeign(NSArray<SGKaraokeLine *> *lines, NSString *language
 }
 
 - (NSUInteger)sungAt:(double)now into:(NSInteger *)sung focus:(NSInteger *)focus openBreak:(NSInteger *)openBreak {
+    if (!_spans || !_lines.count) {
+        *openBreak = -1;
+        *focus = -1;
+        return 0;
+    }
     NSInteger count = (NSInteger)_lines.count, last = -1;
     while (last + 1 < count && _spans[last + 1].start <= now) last++;
     *openBreak = -1;

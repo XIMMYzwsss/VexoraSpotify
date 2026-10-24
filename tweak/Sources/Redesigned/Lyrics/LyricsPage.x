@@ -76,9 +76,9 @@ static void layoutLyricsBackdrop(UIView *page) {
         [shell insertSubview:backdrop atIndex:0];
     }
 
-    backdrop.frame = shell.bounds;
+    if (!CGRectEqualToRect(backdrop.frame, shell.bounds)) backdrop.frame = shell.bounds;
     backdrop.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    [shell sendSubviewToBack:backdrop];
+    if (shell.subviews.firstObject != backdrop) [shell sendSubviewToBack:backdrop];
 
     for (NSNumber *tag in @[@(kLyricsRadialGlowTagA), @(kLyricsRadialGlowTagB)]) {
         UIView *host = [backdrop viewWithTag:tag.integerValue];

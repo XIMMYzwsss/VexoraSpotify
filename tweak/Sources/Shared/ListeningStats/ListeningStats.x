@@ -22,8 +22,53 @@ static NSString *stringIn(id value) {
     return [value isKindOfClass:NSString.class] ? value : nil;
 }
 
+static BOOL isPlaylistURI(NSString *uri) {
+    return [uri containsString:@":playlist:"];
+}
+
+static NSString *savedPlaylistName(NSString *uri) {
+    id names = [NSUserDefaults.standardUserDefaults dictionaryForKey:SGKeyPlaylistNames];
+    id name = [names isKindOfClass:NSDictionary.class] ? names[uri] : nil;
+    return [name isKindOfClass:NSString.class] && [name length] ? name : nil;
+}
+
+static NSString *playlistTitle(NSString *text) {
+    NSString *name = [text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    NSString *lower = name.lowercaseString;
+    for (NSString *prefix in @[@"playing from ", @"playing "]) {
+        if ([lower hasPrefix:prefix] && name.length > prefix.length) {
+            name = [[name substringFromIndex:prefix.length] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+            lower = name.lowercaseString;
+            break;
+        }
+    }
+    for (NSString *sep in @[@" • ", @" · "]) {
+        NSRange range = [name rangeOfString:sep];
+        if (range.location == NSNotFound || range.location > 24) continue;
+        NSString *head = [name substringToIndex:range.location].lowercaseString;
+        if ([head containsString:@"playlist"]) name = [name substringFromIndex:NSMaxRange(range)];
+    }
+    name = [name stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    return name.length && ![name hasPrefix:@"spotify:"] ? name : nil;
+}
+
+static NSString *nameInMetadata(NSDictionary *metadata) {
+    for (NSString *key in @[@"context_name", @"context_title", @"playlist_name", @"entity_name", @"context_description"]) {
+        NSString *name = playlistTitle(stringIn(metadata[key]));
+        if (name) return name;
+    }
+    return nil;
+}
+
 @interface SGPlayRecorder : NSObject <SGPlayerStateObserver>
+- (void)rememberContext:(NSString *)text;
 @end
+
+static SGPlayRecorder *sg_recorder;
+
+void SGListeningRememberContext(NSString *text) {
+    [sg_recorder rememberContext:text];
+}
 
 @implementation SGPlayRecorder {
     SGPlay *_play;
@@ -43,7 +88,36 @@ static BOOL isMusic(NSString *uri) {
     if (!_play.title.length) _play.title = stringIn(track.trackTitle) ?: stringIn(metadata[@"title"]) ?: @"";
     if (!_play.artist.length) _play.artist = stringIn(metadata[@"artist_name"]) ?: stringIn(track.artistName) ?: @"";
     if (!_play.album.length) _play.album = stringIn(metadata[@"album_title"]) ?: @"";
+    NSString *context = SGURIString(state.contextURI);
+    if (isPlaylistURI(context)) {
+        _play.playlistURI = context;
+        if (!_play.playlist.length) _play.playlist = nameInMetadata(metadata) ?: savedPlaylistName(context) ?: @"";
+    }
     if (_duration <= 0) _duration = state.duration;
+}
+
+- (void)rememberContext:(NSString *)text {
+    SPTPlayerState *state = SGPlayerState();
+    NSString *uri = SGURIString(state.contextURI);
+    NSString *name = playlistTitle(text);
+    if (!isPlaylistURI(uri) || !name.length) return;
+    if ([name isEqualToString:state.track.trackTitle] || [name isEqualToString:state.track.artistName]) return;
+    static NSString *seenURI, *seenName;
+    if ([uri isEqualToString:seenURI] && [name isEqualToString:seenName]) {
+        if ([_play.playlistURI isEqualToString:uri] && !_play.playlist.length) _play.playlist = name;
+        return;
+    }
+    seenURI = uri;
+    seenName = name;
+    NSMutableDictionary *names = [[NSUserDefaults.standardUserDefaults dictionaryForKey:SGKeyPlaylistNames] mutableCopy] ?: [NSMutableDictionary dictionary];
+    if ([names[uri] isEqualToString:name]) {
+        if ([_play.playlistURI isEqualToString:uri] && !_play.playlist.length) _play.playlist = name;
+        return;
+    }
+    if (names.count >= 300 && !names[uri]) return;
+    names[uri] = name;
+    [NSUserDefaults.standardUserDefaults setObject:names forKey:SGKeyPlaylistNames];
+    if ([_play.playlistURI isEqualToString:uri]) _play.playlist = name;
 }
 
 - (void)finish {
@@ -65,6 +139,8 @@ static BOOL isMusic(NSString *uri) {
         if (isMusic(uri)) {
             _play = [SGPlay new];
             _play.uri = uri;
+            _play.playlistURI = @"";
+            _play.playlist = @"";
             _duration = _listened = 0;
         }
     }
@@ -83,8 +159,7 @@ static BOOL isMusic(NSString *uri) {
 @end
 
 %ctor {
-    static SGPlayRecorder *recorder;
-    recorder = [SGPlayRecorder new];
-    SGAddPlayerStateObserver(recorder);
-    [NSNotificationCenter.defaultCenter addObserver:recorder selector:@selector(terminate) name:UIApplicationWillTerminateNotification object:nil];
+    sg_recorder = [SGPlayRecorder new];
+    SGAddPlayerStateObserver(sg_recorder);
+    [NSNotificationCenter.defaultCenter addObserver:sg_recorder selector:@selector(terminate) name:UIApplicationWillTerminateNotification object:nil];
 }

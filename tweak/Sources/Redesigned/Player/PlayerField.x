@@ -42,8 +42,8 @@ SGRArtworkField *SGRPlayerField(void) {
 }
 
 SGRPlayerBackgroundKind SGRPlayerBackground(void) {
-    NSInteger kind = SGInt(SGRKeyPlayerBackground, SGEnabled(SGRKeyPlayerMotion) ? SGRPlayerBackgroundColours : SGRPlayerBackgroundStill);
-    return kind >= SGRPlayerBackgroundStill && kind <= SGRPlayerBackgroundFill ? kind : SGRPlayerBackgroundColours;
+    NSInteger kind = SGInt(SGRKeyPlayerBackground, SGRPlayerBackgroundAnimated);
+    return kind >= SGRPlayerBackgroundStill && kind <= SGRPlayerBackgroundFill ? kind : SGRPlayerBackgroundAnimated;
 }
 
 SGRPlayerBackgroundKind SGRPlayerAnimatedFallback(void) {

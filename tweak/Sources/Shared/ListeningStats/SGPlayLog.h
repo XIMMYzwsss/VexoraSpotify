@@ -3,7 +3,9 @@
 // (harness/listening-stats) builds it as the tweak does.
 //
 // The log is a text file of one play per line, appended to as plays end, so recording costs one write:
-//     end <tab> ms <tab> uri <tab> title <tab> artist <tab> album
+//     end <tab> ms <tab> uri <tab> title <tab> artist <tab> album [<tab> playlist uri <tab> playlist]
+// Lines written before playlists were counted have six fields. The last two are empty when the song
+// was not played from a playlist.
 // `end` is when the play stopped, in Unix seconds, which is what both of Spotify's export shapes record.
 //
 // Threading: an SGPlayLog is used from one thread (the main one in the tweak). The parsers are pure and
@@ -14,6 +16,7 @@
 @property (nonatomic) int64_t end;   // Unix seconds, when the play stopped
 @property (nonatomic) int64_t ms;    // how long it was listened to
 @property (nonatomic, copy) NSString *uri, *title, *artist, *album;   // uri and album may be empty, never nil
+@property (nonatomic, copy) NSString *playlistURI, *playlist;   // empty when the song was not played from a playlist
 @end
 
 // A play counts once it has run 30 s, or half of a track shorter than a minute.
@@ -40,7 +43,8 @@ NSArray<NSData *> *SGJSONFilesInZip(NSData *zip);
 - (void)erase;
 @end
 
-// One line of a top list: a track (detail is its artist), an artist (no detail) or an album (its artist).
+// One line of a top list: a track (detail is its artist), an artist (no detail), an album (its artist)
+// or a playlist (no detail).
 @interface SGStatEntry : NSObject
 @property (nonatomic, copy) NSString *name, *detail;
 @property (nonatomic) NSUInteger plays;
@@ -51,7 +55,7 @@ NSArray<NSData *> *SGJSONFilesInZip(NSData *zip);
 @property (nonatomic) NSUInteger plays;
 @property (nonatomic) int64_t ms;
 // Most played first, then most listened to; at most `top` of each.
-@property (nonatomic, copy) NSArray<SGStatEntry *> *tracks, *artists, *albums;
+@property (nonatomic, copy) NSArray<SGStatEntry *> *tracks, *artists, *albums, *playlists;
 @end
 
 // The plays that ended at or after `since` (Unix seconds; 0 for all of them), added up.

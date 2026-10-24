@@ -2,6 +2,7 @@
 #import "Redesigned/Kit/SGRKit.h"
 #import "Shared/Player/SpeedPitch.h"
 #import "Player.h"
+#import "Shared/ListeningStats/ListeningStats.h"
 
 static char kGlassKey, kCloseKey, kMoreKey, kPillKey, kPillViewKey;
 
@@ -58,6 +59,7 @@ static void pillBehindContext(UIViewController *unit) {
     UIView *host = unit.viewIfLoaded;
     if (!host) return;
     UILabel *label = contextLabelIn(host);
+    if (label.text.length) SGListeningRememberContext(label.text);
     UIView *box = label ? objc_getAssociatedObject(label, &kPillViewKey) : nil;
     if (!label || !label.superview) {
         box.hidden = YES;

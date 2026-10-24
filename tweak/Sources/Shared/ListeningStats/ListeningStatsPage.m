@@ -20,6 +20,33 @@ static NSString *playsText(NSUInteger plays) {
     return [NSString stringWithFormat:plays == 1 ? @"%lu play" : @"%lu plays", (unsigned long)plays];
 }
 
+static void attachPlaylistNames(NSArray<SGPlay *> *plays) {
+    NSDictionary *names = [NSUserDefaults.standardUserDefaults dictionaryForKey:SGKeyPlaylistNames];
+    if (![names isKindOfClass:NSDictionary.class]) return;
+    for (SGPlay *play in plays) {
+        if (play.playlist.length || !play.playlistURI.length) continue;
+        NSString *known = names[play.playlistURI];
+        if ([known isKindOfClass:NSString.class] && known.length) play.playlist = known;
+    }
+}
+
+static NSString *topLine(SGStatEntry *entry, BOOL playlist) {
+    if (!entry.name.length) return @"None yet";
+    NSString *name = entry.name;
+    if (playlist && [name hasPrefix:@"spotify:"]) name = @"Playlist";
+    return [NSString stringWithFormat:@"%@ · %@", name, playsText(entry.plays)];
+}
+
+NSString *SGListeningTopArtistLine(void) {
+    return topLine(SGStatsSince(SGListeningLog().plays, 0, 1).artists.firstObject, NO);
+}
+
+NSString *SGListeningTopPlaylistLine(void) {
+    NSArray<SGPlay *> *plays = SGListeningLog().plays;
+    attachPlaylistNames(plays);
+    return topLine(SGStatsSince(plays, 0, 1).playlists.firstObject, YES);
+}
+
 static void showAlert(NSString *title, NSString *message) {
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:title message:message preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
@@ -40,7 +67,9 @@ static SGModSection *topSection(NSString *title, NSArray<SGStatEntry *> *entries
 
 // Added up once, as the page opens: the rows hand back what was worked out then.
 static UIViewController *periodPage(NSString *title, int64_t since) {
-    SGStats *stats = SGStatsSince(SGListeningLog().plays, since, 25);
+    NSArray<SGPlay *> *plays = SGListeningLog().plays;
+    attachPlaylistNames(plays);
+    SGStats *stats = SGStatsSince(plays, since, 25);
     NSString *time = duration(stats.ms), *plays = playsText(stats.plays);
     return [[SGModPage alloc] initWithTitle:title intro:nil sections:@[
         SGSection(nil, @[
@@ -50,6 +79,7 @@ static UIViewController *periodPage(NSString *title, int64_t since) {
         topSection(@"Top tracks", stats.tracks),
         topSection(@"Top artists", stats.artists),
         topSection(@"Top albums", stats.albums),
+        topSection(@"Top playlists", stats.playlists),
     ] footer:nil];
 }
 
