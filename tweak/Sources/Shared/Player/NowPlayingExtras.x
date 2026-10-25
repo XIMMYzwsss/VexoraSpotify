@@ -29,10 +29,10 @@ static NSString *titleWithoutTrackNumber(NSString *title) {
 
 static NSString *animatedArtworkID(id value) {
     if (!value) return nil;
-    if (@available(iOS 26.0, *)) {
-        if ([value isKindOfClass:MPMediaItemAnimatedArtwork.class]) return [(MPMediaItemAnimatedArtwork *)value artworkID];
-    }
-    return nil;
+    // The SDK's MPMediaItemAnimatedArtwork has no artworkID getter; the id is still on the object.
+    id ident = nil;
+    @try { ident = [value valueForKey:@"artworkID"]; } @catch (NSException *exception) { ident = nil; }
+    return [ident isKindOfClass:NSString.class] ? ident : nil;
 }
 
 static BOOL extraMatches(id have, id want) {
