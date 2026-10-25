@@ -215,6 +215,7 @@ static UIButton *controlButton(NSString *symbol, CGFloat size, NSString *label, 
     [UIView transitionWithView:cover duration:SGRCrossfade options:UIViewAnimationOptionTransitionCrossDissolve
                     animations:^{ cover.image = art; } completion:nil];
     [_field setArtwork:art identity:identity animated:YES];
+    [self.view setNeedsLayout];
 }
 
 - (void)playerStateDidChange:(SPTPlayerState *)state {

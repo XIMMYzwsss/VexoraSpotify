@@ -923,6 +923,7 @@ static SGRPortraitLyricsController *sg_page;
     if (!art) return;
     _cover.image = art;
     [_field setArtwork:art identity:identity animated:YES];
+    [self.view setNeedsLayout];
 }
 
 - (void)playerStateDidChange:(SPTPlayerState *)state {

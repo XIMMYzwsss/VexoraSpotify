@@ -2,6 +2,7 @@
 #import "Redesigned/Kit/SGRRepaint.h"
 #import "Redesigned/Kit/SGRBridges.h"
 #import "LyricsLook.h"
+#import "SGRKaraokeView.h"
 
 static char kPageGlassKey, kBackdropKey, kObsKey;
 static const NSInteger kLyricsSolidBackgroundTag = 88002;
@@ -87,12 +88,14 @@ static void layoutLyricsBackdrop(UIView *page) {
         host.hidden = !coverMode;
     }
 
-    backdrop.hidden = original;
+    backdrop.hidden = NO;
     if (original) {
-        shell.backgroundColor = UIColor.clearColor;
-        shell.opaque = NO;
-        page.backgroundColor = UIColor.clearColor;
-        page.opaque = NO;
+        hideSpotifyGlass(shell, backdrop);
+        shell.opaque = YES;
+        shell.backgroundColor = UIColor.blackColor;
+        page.opaque = YES;
+        page.backgroundColor = UIColor.blackColor;
+        SGRLyricsPaintBackdrop(backdrop);
         UIVisualEffectView *glass = SGGlassFor(page, &kPageGlassKey);
         glass.hidden = YES;
         return;
@@ -134,7 +137,10 @@ static void layoutLyricsBackdrop(UIView *page) {
             if (backdrop && !backdrop.hidden && SGRLyricsFullscreenBackgroundNow() == SGRLyricsFullscreenBackgroundCover)
                 refreshRadialColors(backdrop);
         }];
-        objc_setAssociatedObject(page, &kObsKey, @[token, token2], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        id token3 = [NSNotificationCenter.defaultCenter addObserverForName:SGRNowPlayingArtworkDidChangeNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
+            [page setNeedsLayout];
+        }];
+        objc_setAssociatedObject(page, &kObsKey, @[token, token2, token3], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
 }
 %end

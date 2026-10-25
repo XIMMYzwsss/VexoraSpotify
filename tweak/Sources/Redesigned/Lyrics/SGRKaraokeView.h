@@ -17,9 +17,9 @@
 @property (nonatomic) BOOL extrasEnabled;
 // The player's lyrics pages paint one backdrop for the whole screen. The view stays clear then.
 @property (nonatomic) BOOL paintsBackdrop;
-// Fills `plate` with the selected fullscreen lyrics background. `plate` is hidden for Original.
+// Fills `plate` with the selected fullscreen lyrics background. Original is the sharp cover, not a blur.
 void SGRLyricsPaintBackdrop(UIView *plate);
-// One backdrop for the whole page, behind the lines. `behind` shows only for Original.
+// One backdrop for the whole page, behind the lines. `behind` is the player field, hidden once the plate paints.
 void SGRLyricsFillScreen(UIView *host, UIView *behind);
 // Called as the user begins dragging the lines, for the player to bring its controls back.
 @property (nonatomic, copy) void (^browsingBegan)(void);

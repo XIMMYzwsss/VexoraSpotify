@@ -1580,12 +1580,31 @@ void SGRLyricsFillScreen(UIView *host, UIView *behind) {
 
 void SGRLyricsPaintBackdrop(UIView *plate) {
     if (!plate) return;
+    static const NSInteger kOriginalCoverTag = 88007;
     SGRLyricsFullscreenBackground mode = SGRLyricsFullscreenBackgroundNow();
+    UIImageView *original = [plate viewWithTag:kOriginalCoverTag];
     if (mode == SGRLyricsFullscreenBackgroundOriginal) {
-        plate.hidden = YES;
-        plate.backgroundColor = UIColor.clearColor;
+        plate.hidden = NO;
+        plate.backgroundColor = UIColor.blackColor;
+        plate.opaque = YES;
+        for (CALayer *sub in [plate.layer.sublayers copy]) {
+            if ([sub isKindOfClass:CAGradientLayer.class]) [sub removeFromSuperlayer];
+        }
+        if (!original) {
+            original = [UIImageView new];
+            original.tag = kOriginalCoverTag;
+            original.contentMode = UIViewContentModeScaleAspectFill;
+            original.clipsToBounds = YES;
+            original.userInteractionEnabled = NO;
+            original.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+            [plate addSubview:original];
+        }
+        original.hidden = NO;
+        original.frame = plate.bounds;
+        original.image = SGRNowPlayingArtwork(NULL, NULL);
         return;
     }
+    original.hidden = YES;
     plate.hidden = NO;
     for (CALayer *sub in [plate.layer.sublayers copy]) if ([sub isKindOfClass:CAGradientLayer.class]) [sub removeFromSuperlayer];
     if (mode == SGRLyricsFullscreenBackgroundSolid) {
