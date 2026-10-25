@@ -21,6 +21,7 @@ typedef NS_ENUM(NSInteger, SGLockArtwork) {
     SGLockArtworkLyrics,   // a clip per line of lyrics (Shared/LockScreenLyrics/LyricsArtwork.x)
     SGLockArtworkEverySong,   // Moving artwork, else the cover over a moving blur of it (LockScreenMotion.x)
     SGLockArtworkFill,   // a sharp cover fading into progressively blurred artwork
+    SGLockArtworkMotionFill,   // Moving artwork, else Fill
 };
 // Off below iOS 26, which has no animated artwork on the lock screen.
 SGLockArtwork SGLockScreenArtwork(void);
@@ -31,7 +32,7 @@ BOOL SGLockScreenCanvasLyricsEnabled(void);
 void SGLockScreenCanvasLyricsSetEnabled(BOOL enabled);
 void SGLockMotionShowPlain(BOOL plain);
 static inline BOOL SGLockArtworkHasMotion(SGLockArtwork artwork) {
-    return artwork == SGLockArtworkMotion || artwork == SGLockArtworkEverySong;
+    return artwork == SGLockArtworkMotion || artwork == SGLockArtworkEverySong || artwork == SGLockArtworkMotionFill;
 }
 // How the lyrics are drawn, stored as the index of SGLyricsClipStyle (Still unless changed).
 #define SGKeyLockScreenLyricsStyle @"spotifyglass.lockscreen.lyricsStyle"

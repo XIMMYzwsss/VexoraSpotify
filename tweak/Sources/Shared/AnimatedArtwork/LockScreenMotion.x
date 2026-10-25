@@ -186,7 +186,7 @@ static void showFill(NSString *picture) {
     if (![MPNowPlayingInfoCenter.supportedAnimatedArtworkKeys containsObject:MPNowPlayingInfoProperty3x4AnimatedArtwork]) {
         NSUInteger walk = sg_walk;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (walk == sg_walk && sg_choice == SGLockArtworkFill) showFill(picture);
+            if (walk == sg_walk && (sg_choice == SGLockArtworkFill || sg_choice == SGLockArtworkMotionFill)) showFill(picture);
         });
         return;
     }
@@ -262,8 +262,12 @@ void SGLockMotionShowPlain(BOOL plain) {
                 sg_lyricsFile = file;
                 SGLyricsArtworkSetMotion(uri, file);
                 SGLockMotionShowPlain(sg_plain);
+                if (file) return;
+                if (sg_choice == SGLockArtworkEverySong) showCover(sg_picture);
+                else if (sg_choice == SGLockArtworkMotionFill) showFill(sg_picture);
             } else if (file) show(file);
             else if (sg_choice == SGLockArtworkEverySong) showCover(sg_picture);
+            else if (sg_choice == SGLockArtworkMotionFill) showFill(sg_picture);
         }];
         // Heard on the writing thread and handed to main without waiting: a main-queue observer makes every
         // background defaults write wait for main, which deadlocks launch while main waits on Spotify's CoreThread.

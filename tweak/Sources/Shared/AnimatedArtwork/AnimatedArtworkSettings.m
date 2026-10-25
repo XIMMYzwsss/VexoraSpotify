@@ -32,7 +32,9 @@ SGLockArtwork SGLockScreenArtwork(void) {
                 if (legacy.count) [store setObject:legacy forKey:SGKeyMotionSources];
             }
         });
-        return (SGLockArtwork)SGInt(SGKeyFullScreenArtwork, SGLockArtworkOff);
+        NSInteger mode = SGInt(SGKeyFullScreenArtwork, SGLockArtworkOff);
+        if (mode < SGLockArtworkOff || mode > SGLockArtworkMotionFill) return SGLockArtworkOff;
+        return (SGLockArtwork)mode;
     }
     return SGLockArtworkOff;
 }
@@ -118,8 +120,9 @@ NSArray *SGLockScreenMotionRows(void) {
         return @[
             SGChoiceRow(@"Full-screen artwork", @"The Canvas or Apple Music's animated cover, or the lyrics a line at a time. "
                                                  @"Every song puts the cover over a moving blur of it where a song has neither. "
-                                                 @"Fill uses a sharp cover fading into progressively blurred artwork.",
-                        SGKeyFullScreenArtwork, @[@"Off", @"Moving artwork", @"Lyrics", @"Every song", @"Fill"], SGLockArtworkOff),
+                                                 @"Fill uses a sharp cover fading into progressively blurred artwork. "
+                                                 @"Moving or Fill uses Fill where a song has no moving artwork.",
+                        SGKeyFullScreenArtwork, @[@"Off", @"Moving artwork", @"Lyrics", @"Every song", @"Fill", @"Moving or Fill"], SGLockArtworkOff),
             style,
             canvasLyrics,
             exclusiveLyrics,
