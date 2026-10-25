@@ -177,6 +177,7 @@ static UIViewController *modSettingsPage(void) {
     if (signing) [topRows addObject:signing];
     [sections addObject:SGSection(nil, topRows)];
     [sections addObject:SGSection(nil, @[
+        SGWithSymbol(SGStatRow(@"Top played song", ^NSString *{ return SGListeningTopTrackLine(); }), @"music.note"),
         SGWithSymbol(SGStatRow(@"Top played artist", ^NSString *{ return SGListeningTopArtistLine(); }), @"person.fill"),
         SGWithSymbol(SGStatRow(@"Top played playlist", ^NSString *{ return SGListeningTopPlaylistLine(); }), @"music.note.list"),
     ])];

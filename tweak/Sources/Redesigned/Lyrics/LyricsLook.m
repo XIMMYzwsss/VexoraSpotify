@@ -7,6 +7,7 @@
 #import "Redesigned/Kit/SGRBridges.h"
 #import <CoreText/CoreText.h>
 #import <objc/runtime.h>
+#import <math.h>
 
 NSNotificationName const SGRLyricsLookDidChangeNotification = @"spotifyglass.redesign.lyricsLookDidChange";
 NSNotificationName const SGRLyricsCoverColorsDidChangeNotification = @"spotifyglass.redesign.lyricsCoverColorsDidChange";
@@ -183,14 +184,19 @@ static void drawRing(UIImage *stamp, CGFloat pad, CGFloat reach) {
 }
 
 static UIImage *outlinedSymbol(NSString *name, CGFloat pointSize, UIImageSymbolWeight weight) {
+    if (!name.length) return nil;
     UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:pointSize weight:weight];
     UIImage *glyph = [[UIImage systemImageNamed:name withConfiguration:config] imageWithTintColor:UIColor.whiteColor renderingMode:UIImageRenderingModeAlwaysOriginal];
     UIImage *stamp = [[UIImage systemImageNamed:name withConfiguration:config] imageWithTintColor:UIColor.blackColor renderingMode:UIImageRenderingModeAlwaysOriginal];
     if (!glyph) return nil;
     // The controls are white, so the ring around them is black. A white ring only made them look heavier.
     CGFloat reach = 1.15, pad = reach + 0.5;
-    CGSize size = CGSizeMake(glyph.size.width + pad * 2, glyph.size.height + pad * 2);
-    UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:size];
+    CGFloat w = glyph.size.width + pad * 2, h = glyph.size.height + pad * 2;
+    if (!(isfinite(w) && isfinite(h) && w >= 1 && h >= 1)) return glyph;
+    if (!stamp) return glyph;
+    UIGraphicsImageRendererFormat *format = [UIGraphicsImageRendererFormat preferredFormat];
+    format.opaque = NO;
+    UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(w, h) format:format];
     return [renderer imageWithActions:^(UIGraphicsImageRendererContext *ctx) {
         (void)ctx;
         drawRing(stamp, pad, reach);

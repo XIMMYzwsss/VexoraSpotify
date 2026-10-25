@@ -71,7 +71,9 @@ UIViewController *SGLyricsSettingsPage(void) {
     if (!redesigned) [more insertObject:SGGlassLyricsRow() atIndex:0];
     NSMutableArray<SGModSection *> *sections = [NSMutableArray arrayWithObject:SGLyricsSourcesSection(redesigned)];
     if (redesigned) {
-        [sections addObject:SGSection(@"Display", @[
+        SGModRow *landscape = SGSwitchRow(@"Landscape lyrics", @"Show lyrics beside the cover when the phone is on its side", SGRKeyLandscapeLyrics);
+        landscape.changed = ^(BOOL on) { (void)on; SGRPlayerLyricsOrientationChanged(); };
+        [sections addObject:SGSection(@"Display", @[landscape,
             SGLyricsWordTimingRow(), SGLyricsRomanisedRow(), SGLyricsDelayRow(),
             SGRLyricsTextSizesRow(), SGLyricsTranslationLanguageRow(), SGLyricsMeaningsRow(), SGLyricsMeaningMarkersRow()])];
         [sections addObject:SGSection(@"Translation", @[SGTranslateEverySongRow(), SGGeminiKeyRow(), SGSavedTranslationsRow()])];

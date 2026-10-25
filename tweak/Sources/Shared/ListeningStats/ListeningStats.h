@@ -19,6 +19,7 @@
 SGPlayLog *SGListeningLog(void);
 UIViewController *SGListeningStatsPage(void);
 // "Name · 12 plays", or "None yet" when nothing has counted. All time.
+NSString *SGListeningTopTrackLine(void);
 NSString *SGListeningTopArtistLine(void);
 NSString *SGListeningTopPlaylistLine(void);
 // The player's "Playing from" line, kept against the playlist that is on now.

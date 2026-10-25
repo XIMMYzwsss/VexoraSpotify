@@ -127,6 +127,9 @@ static UIColor *dimFromLit(UIColor *lit) {
 
 static UILabel *wordLabel(NSString *text, UIFont *font, UIColor *color, CGRect frame, BOOL rightToLeft, BOOL outlined, BOOL lit) {
     UILabel *label = [[UILabel alloc] initWithFrame:frame];
+    if (!text) text = @"";
+    if (!font) font = [UIFont systemFontOfSize:17 weight:UIFontWeightBold];
+    if (!color) color = UIColor.whiteColor;
     label.font = font;
     BOOL vexoraLit = sg_vexoraGlow && lit;
     BOOL useAttrs = rightToLeft || outlined || vexoraLit;
@@ -138,7 +141,8 @@ static UILabel *wordLabel(NSString *text, UIFont *font, UIColor *color, CGRect f
     NSMutableDictionary *attrs = [NSMutableDictionary dictionaryWithDictionary:@{
         NSFontAttributeName: font, NSForegroundColorAttributeName: color}];
     if (outlined) {
-        attrs[NSStrokeColorAttributeName] = SGRLyricsOutlineColor();
+        UIColor *stroke = SGRLyricsOutlineColor() ?: UIColor.whiteColor;
+        attrs[NSStrokeColorAttributeName] = stroke;
         attrs[NSStrokeWidthAttributeName] = @(-2.0);
     }
     (void)vexoraLit;
@@ -153,6 +157,8 @@ static UILabel *wordLabel(NSString *text, UIFont *font, UIColor *color, CGRect f
 
 // The desktop Vexora lyrics glow: three white blurs (8 / 20 / 36 pt) under a sharp white line.
 static UIView *vexoraHalo(NSString *text, UIFont *font, CGRect bounds, BOOL rightToLeft) {
+    if (!text) text = @"";
+    if (!font) font = [UIFont systemFontOfSize:17 weight:UIFontWeightBold];
     UIView *box = [[UIView alloc] initWithFrame:bounds];
     box.userInteractionEnabled = NO;
     box.clipsToBounds = NO;
@@ -183,6 +189,9 @@ static UIView *vexoraHalo(NSString *text, UIFont *font, CGRect bounds, BOOL righ
 
 // The lit word as one label per letter, so each can rise and glow on its own as the sweep reaches it.
 static UIView *letterHost(NSString *text, UIFont *font, UIColor *litColor, CGRect bounds, NSArray<UILabel *> **out) {
+    if (!text) text = @"";
+    if (!font) font = [UIFont systemFontOfSize:17 weight:UIFontWeightBold];
+    if (!litColor) litColor = UIColor.whiteColor;
     UIView *host = [[UIView alloc] initWithFrame:bounds];
     NSMutableArray<UILabel *> *letters = [NSMutableArray array];
     NSDictionary *attributes = @{NSFontAttributeName: font};
@@ -226,7 +235,10 @@ static UIView *letterHost(NSString *text, UIFont *font, UIColor *litColor, CGRec
 }
 
 - (instancetype)initWithWord:(SGKaraokeWord *)word font:(UIFont *)font rightToLeft:(BOOL)rightToLeft litColor:(UIColor *)litColor {
-    CGSize size = [word.text sizeWithAttributes:@{NSFontAttributeName: font}];
+    NSString *text = word.text ?: @"";
+    if (!font) font = [UIFont systemFontOfSize:17 weight:UIFontWeightBold];
+    if (!litColor) litColor = UIColor.whiteColor;
+    CGSize size = [text sizeWithAttributes:@{NSFontAttributeName: font}];
     self = [super initWithFrame:CGRectMake(0, 0, ceil(size.width), ceil(font.lineHeight))];
     if (!self) return nil;
     _word = word;
@@ -234,11 +246,11 @@ static UIView *letterHost(NSString *text, UIFont *font, UIColor *litColor, CGRec
     _riseEnd = word.end;
     _rightToLeft = rightToLeft;
     UIColor *dim = dimFromLit(litColor);
-    [self addSubview:wordLabel(word.text, font, dim, self.bounds, rightToLeft, NO, NO)];
-    BOOL waves = sgLetters && !rightToLeft && word.text.length > 1 && !SGKaraokeUnspacedScript(word.text);
+    [self addSubview:wordLabel(text, font, dim, self.bounds, rightToLeft, NO, NO)];
+    BOOL waves = sgLetters && !rightToLeft && text.length > 1 && !SGKaraokeUnspacedScript(text);
     NSArray<UILabel *> *letters = nil;
-    _lit = waves ? letterHost(word.text, font, litColor, self.bounds, &letters)
-                 : wordLabel(word.text, font, litColor, self.bounds, rightToLeft, sg_outline, YES);
+    _lit = waves ? letterHost(text, font, litColor, self.bounds, &letters)
+                 : wordLabel(text, font, litColor, self.bounds, rightToLeft, sg_outline, YES);
     _letters = letters;
     // Hidden until the line is sung: a masked layer is drawn offscreen every frame even when the
     // mask leaves nothing of it, and a song has hundreds of words waiting their turn.
@@ -254,7 +266,8 @@ static UIView *letterHost(NSString *text, UIFont *font, UIColor *litColor, CGRec
 
     CGFloat width = self.bounds.size.width + sgFillEdge;
     _fill = [CAGradientLayer layer];
-    _fill.colors = @[(id)litColor.CGColor, (id)litColor.CGColor, (id)UIColor.clearColor.CGColor];
+    CGColorRef litCG = litColor.CGColor ?: UIColor.whiteColor.CGColor;
+    _fill.colors = @[(__bridge id)litCG, (__bridge id)litCG, (id)UIColor.clearColor.CGColor];
     _fill.locations = @[@0, @((width - sgFillEdge) / width), @1];
     _fill.startPoint = CGPointMake(rightToLeft ? 1 : 0, 0.5);
     _fill.endPoint = CGPointMake(rightToLeft ? 0 : 1, 0.5);

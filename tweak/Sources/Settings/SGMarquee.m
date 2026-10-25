@@ -42,6 +42,9 @@ static NSString *const kScroll = @"sg.marquee";
 - (UIColor *)outlineColor { return _outlineColor; }
 
 static NSAttributedString *strokeLine(NSString *text, UIFont *font, UIColor *stroke, CGFloat width) {
+    if (!text) text = @"";
+    if (!font) font = [UIFont systemFontOfSize:17];
+    if (!stroke) stroke = UIColor.blackColor;
     return [[NSAttributedString alloc] initWithString:text attributes:@{
         NSFontAttributeName: font,
         NSForegroundColorAttributeName: UIColor.clearColor,

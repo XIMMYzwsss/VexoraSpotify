@@ -37,6 +37,10 @@ static NSString *topLine(SGStatEntry *entry, BOOL playlist) {
     return [NSString stringWithFormat:@"%@ · %@", name, playsText(entry.plays)];
 }
 
+NSString *SGListeningTopTrackLine(void) {
+    return topLine(SGStatsSince(SGListeningLog().plays, 0, 1).tracks.firstObject, NO);
+}
+
 NSString *SGListeningTopArtistLine(void) {
     return topLine(SGStatsSince(SGListeningLog().plays, 0, 1).artists.firstObject, NO);
 }
