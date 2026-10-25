@@ -5,9 +5,14 @@ NSString *const SGPlayerTransitionNotification = @"spotifyglass.playerTransition
 NSString *const SGPlayerTransitionEndedNotification = @"spotifyglass.playerTransitionEnded";
 static CFTimeInterval sg_transitionEnds;
 static NSUInteger sg_transitionGeneration;
+static NSInteger sg_playerOpen;
 
 CFTimeInterval SGPlayerTransitionEnds(void) {
     return sg_transitionEnds > CACurrentMediaTime() ? sg_transitionEnds : 0;
+}
+
+BOOL SGPlayerIsOpen(void) {
+    return sg_playerOpen > 0;
 }
 
 static void announceTransition(UIViewController *unit, BOOL animated, NSString *what) {
@@ -29,10 +34,12 @@ static void announceTransition(UIViewController *unit, BOOL animated, NSString *
 %hook _TtC21NowPlaying_ScrollImpl27NPVBackgroundViewController
 - (void)viewWillAppear:(BOOL)animated {
     %orig;
+    sg_playerOpen++;
     announceTransition((UIViewController *)self, animated, @"opens");
 }
 - (void)viewWillDisappear:(BOOL)animated {
     %orig;
+    if (sg_playerOpen > 0) sg_playerOpen--;
     announceTransition((UIViewController *)self, animated, @"closes");
 }
 %end

@@ -13,8 +13,9 @@
 // Spotify built again, gets it.
 //
 // The clip holds still when the moving field does (SGRField.m): out of a window, with the app not in front,
-// while the player opens or closes, and while the song is paused. Under Reduce Motion and in Low Power Mode
-// no clip plays at all: the cover stays over Fluid, as for a track without one, until both are off again.
+// while the player opens or closes, on Home with the player only still in the window, and while the song is
+// paused. Under Reduce Motion and in Low Power Mode no clip plays at all: the cover stays over Fluid, as for
+// a track without one, until both are off again.
 // While a clip is showing, the Fluid field under it is held still too, and once the clip has faded in it is
 // hidden (the field's covered): the field's color is what shows above the clip on the pull that dismisses.
 //
@@ -382,10 +383,12 @@ static UIViewPropertyAnimator *setBlurIntensity(UIVisualEffectView *view, UIView
 }
 
 // A locked phone keeps the player in its window, so being in front counts as much as being in one.
+// Home keeps it in the window too: the clip must not keep decoding there, or the lock screen's moving
+// artwork (the same file) freezes on the first frame.
 - (void)updateMotion {
     BOOL front = UIApplication.sharedApplication.applicationState == UIApplicationStateActive;
-    BOOL may = self.window && front && !SGRPlayerIsTransitioning() && !SGRReduceMotion() && !NSProcessInfo.processInfo.lowPowerModeEnabled
-        && SGPlayerIsPlaying();
+    BOOL may = self.window && front && SGRPlayerIsOpen() && !SGRPlayerIsTransitioning() && !SGRReduceMotion()
+        && !NSProcessInfo.processInfo.lowPowerModeEnabled && SGPlayerIsPlaying();
     if (may) [_player play];
     else [_player pause];
     // Only count while the clip is actually allowed to play: paused, Connect-as-paused, or out of a
@@ -398,7 +401,7 @@ static UIViewPropertyAnimator *setBlurIntensity(UIVisualEffectView *view, UIView
             if (!view) return;
             view->_timing = NO;
             BOOL still = view.window && UIApplication.sharedApplication.applicationState == UIApplicationStateActive
-                && SGPlayerIsPlaying() && !SGRPlayerIsTransitioning();
+                && SGRPlayerIsOpen() && SGPlayerIsPlaying() && !SGRPlayerIsTransitioning();
             if (still && !view->_clip.readyForDisplay && view.gaveUp) view.gaveUp();
             else [view updateMotion];
         });
@@ -626,7 +629,7 @@ static BOOL motionAllowed(void) {
 
 // The clip can be seen: in a window, with the app in front.
 static BOOL seen(UIView *view) {
-    return view.window && UIApplication.sharedApplication.applicationState == UIApplicationStateActive;
+    return view.window && UIApplication.sharedApplication.applicationState == UIApplicationStateActive && SGRPlayerIsOpen();
 }
 
 // The clip fades out over the cover coming back where the player is seen, and goes at once where not.

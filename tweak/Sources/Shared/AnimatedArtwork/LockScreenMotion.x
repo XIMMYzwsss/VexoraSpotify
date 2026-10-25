@@ -40,6 +40,7 @@ static BOOL sg_plain, sg_plainShown;
 // Moving or Fill puts Fill on while the clip is looked up; its video is not encoded until the walk
 // says there is none, so a song that has a clip is not held behind a Fill write.
 static BOOL sg_fillStandIn;
+static NSURL *sg_offeredFile;
 
 static BOOL motionOn(SGLockArtwork choice) {
     return SGLockArtworkHasMotion(choice);
@@ -77,6 +78,7 @@ static UIImage *filled(UIImage *image, CGSize size) {
 
 API_AVAILABLE(ios(26.0))
 static void show(NSURL *file) {
+    if (file && [sg_offeredFile.path isEqualToString:file.path]) return;
     NSUInteger walk = sg_walk;
     NSString *title = sg_title;
     SGMotionPoster(file, ^(UIImage *poster) {
@@ -99,6 +101,11 @@ static void show(NSURL *file) {
                     completion(file);
                     return;
                 }
+                // Home's now-playing widget asks again; a cut already on disk must not wait on sg_queue.
+                if ([NSFileManager.defaultManager fileExistsAtPath:shaped.path]) {
+                    completion(shaped);
+                    return;
+                }
                 dispatch_async(sg_queue, ^{
                     CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
                     BOOL ok = [NSFileManager.defaultManager fileExistsAtPath:shaped.path] || SGMotionClipShape(file, ratio, shaped);
@@ -108,6 +115,7 @@ static void show(NSURL *file) {
                 });
             }];
         SGNowPlayingSetExtras(@"motion", @{key: artwork}, title);
+        sg_offeredFile = file;
         SGLog(@"lock motion: %@, %.0fx%.0f, as %@%@", file.lastPathComponent, poster.size.width, poster.size.height,
               ratio == 1 ? @"1:1" : @"3:4", fits ? @"" : @", cut to fit");
     });
@@ -254,6 +262,7 @@ void SGLockMotionShowPlain(BOOL plain) {
         // Each walk takes the last one's clip off first, so the lock screen falls back to the still cover.
         sg_follower = [[SGMotionFollower alloc] initWithBegin:^BOOL(NSString *uri, SPTPlayerState *state) {
             sg_walk++;
+            sg_offeredFile = nil;
             sg_lyricsFile = nil;
             sg_plainShown = NO;
             NSDictionary *metadata = [state.track.metadata isKindOfClass:NSDictionary.class] ? state.track.metadata : nil;

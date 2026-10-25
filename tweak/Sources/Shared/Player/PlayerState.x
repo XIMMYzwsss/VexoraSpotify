@@ -114,7 +114,9 @@ static SGPlayerObserver *sg_ownObserver;
     static double lastRate = NAN;
     NSString *title = [info[MPMediaItemPropertyTitle] isKindOfClass:NSString.class] ? info[MPMediaItemPropertyTitle] : @"";
     NSNumber *rate = info[MPNowPlayingInfoPropertyPlaybackRate];
-    double r = [rate isKindOfClass:NSNumber.class] ? rate.doubleValue : 0;
+    // Spotify's elapsed-only dictionaries leave the rate out. That is not a pause: treating it as 0
+    // republished every observer and paused the clip, which froze Moving artwork on Home.
+    double r = [rate isKindOfClass:NSNumber.class] ? rate.doubleValue : (!isnan(lastRate) ? lastRate : 0);
     BOOL changed = !lastTitle || ![title isEqualToString:lastTitle] || !(fabs(r - lastRate) < 0.01);
     lastTitle = title;
     lastRate = r;

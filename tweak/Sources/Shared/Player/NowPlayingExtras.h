@@ -2,6 +2,10 @@
 // artwork, the song's ISRC for iOS's Music Haptics. Each feature sets its own keys for one title, and
 // they ride on every dictionary Spotify sends for that title until the feature sets others.
 //
+// The same animated artwork object is kept on elapsed-only updates: replacing it, even with the same
+// artworkID, makes iOS 26 restart the lock-screen clip and freeze it on Home. An owner that sets the
+// same extras again is a no-op.
+//
 // Lock screen lyrics hooks the same setter and keeps Spotify's own dictionary behind the getter, so
 // nothing here stores Spotify's: when extras change, or are cleared while the info still carries them,
 // the info the getter gives back is sent again without the old ones and with its clock moved on.

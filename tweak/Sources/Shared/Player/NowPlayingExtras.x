@@ -27,6 +27,31 @@ static NSString *titleWithoutTrackNumber(NSString *title) {
     return index > numberEnd && index < trimmed.length ? [trimmed substringFromIndex:index] : trimmed;
 }
 
+static NSString *animatedArtworkID(id value) {
+    if (!value) return nil;
+    if (@available(iOS 26.0, *)) {
+        if ([value isKindOfClass:MPMediaItemAnimatedArtwork.class]) return [(MPMediaItemAnimatedArtwork *)value artworkID];
+    }
+    return nil;
+}
+
+static BOOL extraMatches(id have, id want) {
+    if (have == want) return YES;
+    if (!have || !want) return NO;
+    NSString *haveID = animatedArtworkID(have);
+    NSString *wantID = animatedArtworkID(want);
+    if (haveID.length && [haveID isEqualToString:wantID]) return YES;
+    return [have isEqual:want];
+}
+
+static BOOL extrasAlreadyIn(NSDictionary *info, NSDictionary *added) {
+    if (!info || !added.count) return NO;
+    for (id key in added) {
+        if (!extraMatches(info[key], added[key])) return NO;
+    }
+    return YES;
+}
+
 BOOL SGNowPlayingTitlesMatch(id left, id right) {
     if (![left isKindOfClass:NSString.class] || ![right isKindOfClass:NSString.class]) return NO;
     NSString *leftTitle = left;
@@ -67,6 +92,16 @@ void SGNowPlayingSetExtras(NSString *owner, NSDictionary *extras, NSString *titl
         sg_titles[owner] = extras.count ? title : nil;
     }
     if (extras.count) {
+        if (old.count == extras.count) {
+            BOOL same = YES;
+            for (id key in extras) {
+                if (!extraMatches(old[key], extras[key])) {
+                    same = NO;
+                    break;
+                }
+            }
+            if (same) return;
+        }
         resend(old.allKeys ?: @[]);
         return;
     }
@@ -99,6 +134,10 @@ void SGNowPlayingSetExtras(NSString *owner, NSDictionary *extras, NSString *titl
         }
     }
     if (!added) {
+        %orig;
+        return;
+    }
+    if (extrasAlreadyIn(info, added)) {
         %orig;
         return;
     }

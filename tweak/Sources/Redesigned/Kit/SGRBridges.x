@@ -280,6 +280,10 @@ BOOL SGRPlayerIsTransitioning(void) {
     return SGPlayerTransitionEnds() > 0;
 }
 
+BOOL SGRPlayerIsOpen(void) {
+    return SGPlayerIsOpen();
+}
+
 @interface SGRTransitionObservation : NSObject
 @property (nonatomic, strong) NSArray *tokens;
 @end

@@ -18,4 +18,6 @@ UIImage *SGRNowPlayingArtwork(NSString **trackURI, NSString **identity);
 
 // While the full screen player opens or closes (Shared/Player/PlayerEvents.x announces it).
 BOOL SGRPlayerIsTransitioning(void);
+// The full-screen player is on screen, not only still in a window behind Home.
+BOOL SGRPlayerIsOpen(void);
 void SGRObservePlayerTransition(id owner, void (^began)(id owner), void (^ended)(id owner));
