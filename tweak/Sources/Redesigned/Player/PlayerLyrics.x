@@ -570,7 +570,6 @@ static void setOpen(BOOL open, BOOL animated) {
     sg_open = open;
     SGRPlayerLyricsChanged();
     SGRPlayerShowPortraitLyrics(open);
-    if (open) SGRPlayerLyricsOrientationChanged();
     if (!open) {
         setAlone(NO, NO);
         SGRPlayerShowLandscape(NO);
@@ -734,6 +733,7 @@ static void replace(void) {
 #pragma mark - lyrics page
 
 static const CGFloat kPageCover = 72, kPagePad = 20, kPageGap = 12;
+static const CGFloat kSidePad = 32, kCoverGap = 16, kControlSide = 44, kColumnShare = 0.38;
 
 @interface SGRPortraitLyricsController : UIViewController <SGPlayerStateObserver>
 @end
@@ -752,12 +752,24 @@ static SGRPortraitLyricsController *sg_page;
     UIView *_shield;
 }
 
+- (BOOL)sideways {
+    return SGEnabled(SGRKeyLandscapeLyrics) && self.view.bounds.size.width > self.view.bounds.size.height + 1;
+}
+
 - (UIInterfaceOrientationMask)supportedInterfaceOrientations {
-    return UIInterfaceOrientationMaskPortrait;
+    return SGEnabled(SGRKeyLandscapeLyrics) ? UIInterfaceOrientationMaskAllButUpsideDown : UIInterfaceOrientationMaskPortrait;
 }
 
 - (BOOL)shouldAutorotate {
-    return NO;
+    return SGEnabled(SGRKeyLandscapeLyrics);
+}
+
+- (BOOL)prefersStatusBarHidden {
+    return self.sideways;
+}
+
+- (BOOL)prefersHomeIndicatorAutoHidden {
+    return self.sideways;
 }
 
 - (void)viewDidLoad {
@@ -845,24 +857,53 @@ static SGRPortraitLyricsController *sg_page;
     [_rest invalidate];
 }
 
+- (void)applyFonts {
+    if (self.sideways) {
+        _title.font = SGRFont(UIFontTextStyleTitle3, UIFontWeightBold, UIContentSizeCategoryExtraExtraExtraLarge);
+        _artist.font = SGRFont(UIFontTextStyleCallout, UIFontWeightRegular, UIContentSizeCategoryExtraExtraExtraLarge);
+    } else {
+        _title.font = SGRFont(UIFontTextStyleHeadline, UIFontWeightBold, UIContentSizeCategoryExtraExtraLarge);
+        _artist.font = SGRFont(UIFontTextStyleSubheadline, UIFontWeightRegular, UIContentSizeCategoryExtraExtraLarge);
+    }
+}
+
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
+    [self applyFonts];
     CGRect safe = UIEdgeInsetsInsetRect(self.view.bounds, self.view.safeAreaInsets);
-    CGFloat top = CGRectGetMinY(safe) + 8;
-    _cover.frame = CGRectMake(CGRectGetMinX(safe) + kPagePad, top, kPageCover, kPageCover);
-    _close.frame = CGRectMake(CGRectGetMaxX(safe) - kPagePad - 44, top, 44, 44);
-    CGFloat textX = CGRectGetMaxX(_cover.frame) + kPageGap;
-    CGFloat textW = CGRectGetMinX(_close.frame) - textX - 8;
     CGFloat titleH = ceil(_title.font.lineHeight), artistH = ceil(_artist.font.lineHeight);
-    CGFloat textY = top + (kPageCover - titleH - artistH) / 2;
-    _title.frame = CGRectMake(textX, textY, textW, titleH);
-    _artist.frame = CGRectMake(textX, CGRectGetMaxY(_title.frame), textW, artistH);
-    CGFloat controlsH = 52;
-    _controls.frame = CGRectMake(CGRectGetMinX(safe) + 36, CGRectGetMaxY(safe) - controlsH - 8, safe.size.width - 72, controlsH);
-    CGFloat stageY = CGRectGetMaxY(_cover.frame) + 16;
-    CGFloat stageH = CGRectGetMinY(_controls.frame) - 8 - stageY;
-    if (stageH < 1) stageH = 1;
-    _stage.frame = CGRectMake(0, stageY, MAX(self.view.bounds.size.width, 0), stageH);
+    if (self.sideways) {
+        CGFloat column = round(safe.size.width * kColumnShare);
+        CGFloat left = CGRectGetMinX(safe) + kSidePad;
+        CGFloat textHeight = MAX(titleH + artistH, kControlSide), controlsHeight = kControlSide;
+        CGFloat side = MIN(column - kSidePad, safe.size.height - 2 * kSidePad - textHeight - controlsHeight - 2 * kCoverGap);
+        CGFloat top = CGRectGetMidY(safe) - (side + kCoverGap + textHeight + kCoverGap + controlsHeight) / 2;
+        _cover.layer.cornerRadius = SGRRadiusArtwork;
+        _cover.frame = CGRectMake(left, top, side, side);
+        CGFloat textTop = CGRectGetMaxY(_cover.frame) + kCoverGap;
+        _close.frame = CGRectMake(left + side - kControlSide + 12, textTop + (textHeight - kControlSide) / 2, kControlSide, kControlSide);
+        _title.frame = CGRectMake(left, textTop + (textHeight - titleH - artistH) / 2, side - kControlSide, titleH);
+        _artist.frame = CGRectMake(left, CGRectGetMaxY(_title.frame), side - kControlSide, artistH);
+        _controls.frame = CGRectMake(left + side * 0.1, textTop + textHeight + kCoverGap, side * 0.8, controlsHeight);
+        CGFloat linesLeft = left + side + kSidePad;
+        _stage.frame = CGRectMake(linesLeft, CGRectGetMinY(safe), CGRectGetMaxX(safe) - linesLeft, safe.size.height);
+    } else {
+        CGFloat top = CGRectGetMinY(safe) + 8;
+        _cover.layer.cornerRadius = 10;
+        _cover.frame = CGRectMake(CGRectGetMinX(safe) + kPagePad, top, kPageCover, kPageCover);
+        _close.frame = CGRectMake(CGRectGetMaxX(safe) - kPagePad - 44, top, 44, 44);
+        CGFloat textX = CGRectGetMaxX(_cover.frame) + kPageGap;
+        CGFloat textW = CGRectGetMinX(_close.frame) - textX - 8;
+        CGFloat textY = top + (kPageCover - titleH - artistH) / 2;
+        _title.frame = CGRectMake(textX, textY, textW, titleH);
+        _artist.frame = CGRectMake(textX, CGRectGetMaxY(_title.frame), textW, artistH);
+        CGFloat controlsH = 52;
+        _controls.frame = CGRectMake(CGRectGetMinX(safe) + 36, CGRectGetMaxY(safe) - controlsH - 8, safe.size.width - 72, controlsH);
+        CGFloat stageY = CGRectGetMaxY(_cover.frame) + 16;
+        CGFloat stageH = CGRectGetMinY(_controls.frame) - 8 - stageY;
+        if (stageH < 1) stageH = 1;
+        _stage.frame = CGRectMake(0, stageY, MAX(self.view.bounds.size.width, 0), stageH);
+    }
     _lyrics.frame = _stage.bounds;
     _shield.frame = self.view.bounds;
     SGRLyricsFillScreen(self.view, _field);
@@ -961,55 +1002,36 @@ static SGRPortraitLyricsController *sg_page;
 
 @end
 
-static UIWindowScene *phoneScene(void) {
-    UIWindowScene *fallback = nil;
-    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
-        if (![scene isKindOfClass:UIWindowScene.class]) continue;
-        if (!fallback) fallback = (UIWindowScene *)scene;
-        if (scene.activationState == UISceneActivationStateForegroundActive) return (UIWindowScene *)scene;
-    }
-    return fallback;
-}
-
-static UIWindow *hostWindow(UIWindowScene *scene) {
-    for (UIWindow *window in scene.windows) if (window.isKeyWindow && !window.hidden) return window;
-    for (UIWindow *window in scene.windows) if (!window.hidden && window.windowLevel <= UIWindowLevelNormal) return window;
-    return nil;
-}
-
 void SGRPlayerPortraitLyricsObscured(BOOL obscured) {
-    sg_page.view.hidden = obscured;
+    (void)obscured;
 }
 
-// A second window made key is what UIKit rejects once the app has been allowed to turn. The page is a
-// child of the window already on screen, so opening it does not ask the scene to rotate.
 void SGRPlayerShowPortraitLyrics(BOOL show) {
-    if (!phoneScene()) return;
     if (show && !sg_page) {
-        UIWindow *host = hostWindow(phoneScene());
-        UIViewController *parent = host.rootViewController;
-        if (!host || !parent) return;
         SGRPortraitLyricsController *page = [SGRPortraitLyricsController new];
         page.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-        [parent addChildViewController:page];
-        page.view.frame = host.bounds;
-        page.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        page.view.alpha = 0;
-        [host addSubview:page.view];
-        [page didMoveToParentViewController:parent];
+        page.modalPresentationStyle = UIModalPresentationOverFullScreen;
+        page.modalTransitionStyle = UIModalTransitionStyleCrossDissolve;
         sg_page = page;
-        SGRAnimate(SGRMotionFade, ^{ page.view.alpha = 1; }, nil);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (sg_page != page) return;
+            UIViewController *from = SGTopController();
+            if (!from || from.isBeingDismissed || from.presentedViewController || [from isKindOfClass:SGRPortraitLyricsController.class]) return;
+            [from presentViewController:page animated:YES completion:^{
+                SGRPlayerLyricsOrientationChanged();
+            }];
+        });
         SGLog(@"redesign player: lyrics page up");
     } else if (!show && sg_page) {
         SGRPortraitLyricsController *page = sg_page;
         sg_page = nil;
-        page.view.userInteractionEnabled = NO;
-        SGRAnimate(SGRMotionFade, ^{ page.view.alpha = 0; }, ^(BOOL finished) {
-            (void)finished;
-            [page willMoveToParentViewController:nil];
-            [page.view removeFromSuperview];
-            [page removeFromParentViewController];
-        });
+        if (page.presentingViewController || page.isBeingPresented) {
+            [page dismissViewControllerAnimated:YES completion:^{
+                SGRPlayerLyricsOrientationChanged();
+            }];
+        } else {
+            SGRPlayerLyricsOrientationChanged();
+        }
         SGLog(@"redesign player: lyrics page down");
     }
 }
