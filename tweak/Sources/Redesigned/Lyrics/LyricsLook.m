@@ -152,14 +152,19 @@ static CGFloat luminance(CGFloat r, CGFloat g, CGFloat b) {
     return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
+static NSArray<UIColor *> *sg_coverPair;
+
 // The page's own background, not the white of the words on it.
+// Uses the last cover read only. Asking SGRLyricsCoverColors here re-entered its
+// dispatch_once while the first lyrics page was loading and killed the app.
 static CGFloat backdropLuminance(void) {
     if (SGRLyricsFullscreenBackgroundNow() == SGRLyricsFullscreenBackgroundSolid) {
         CGFloat r, g, b;
         rgbOf(SGRLyricsSolidBackgroundColor(), &r, &g, &b);
         return luminance(r, g, b);
     }
-    NSArray<UIColor *> *pair = SGRLyricsCoverColors();
+    NSArray<UIColor *> *pair = sg_coverPair;
+    if (pair.count < 1) return 0;
     CGFloat r1, g1, b1, r2, g2, b2;
     rgbOf(pair.firstObject, &r1, &g1, &b1);
     rgbOf(pair.count > 1 ? pair[1] : pair.firstObject, &r2, &g2, &b2);
@@ -307,9 +312,9 @@ static NSArray<UIColor *> *coverPair(UIImage *image) {
     return @[colorFromBytes(c1r, c1g, c1b), colorFromBytes(c2r, c2g, c2b)];
 }
 
-static NSArray<UIColor *> *sg_coverPair;
 static NSString *sg_coverPairURI, *sg_coverFetchURI;
 static NSURLSessionDataTask *sg_coverFetch;
+static BOOL sg_coverWatching;
 
 static NSURL *coverSampleURL(SPTPlayerTrack *track) {
     NSDictionary *metadata = [track respondsToSelector:@selector(metadata)] ? track.metadata : nil;
@@ -380,15 +385,14 @@ static void refreshCoverColors(void) {
 @end
 
 static void startCoverColors(void) {
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        SGAddPlayerStateObserver([SGRCoverColorWatcher new]);
-        [NSNotificationCenter.defaultCenter addObserverForName:SGRNowPlayingArtworkDidChangeNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
-            (void)note;
-            refreshCoverColors();
-        }];
+    if (sg_coverWatching) return;
+    sg_coverWatching = YES;
+    SGAddPlayerStateObserver([SGRCoverColorWatcher new]);
+    [NSNotificationCenter.defaultCenter addObserverForName:SGRNowPlayingArtworkDidChangeNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
+        (void)note;
         refreshCoverColors();
-    });
+    }];
+    refreshCoverColors();
 }
 
 UIColor *SGRLyricsCoverColor(void) {
