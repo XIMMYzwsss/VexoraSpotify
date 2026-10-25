@@ -80,7 +80,7 @@ void SGRPlayerApplyBackgroundToField(SGRArtworkField *field, SGRPlayerBackground
 // the field: an animated artwork's clip, which covers it (PlayerMotion.x), or the Visualizer's hills, which are
 // the one thing moving.
 static BOOL fieldHeld(void) {
-    return SGPlayerState().isPaused || SGRPlayerMotionShowing() || SGRPlayerVisualiserShowing();
+    return !SGPlayerIsPlaying() || SGRPlayerMotionShowing() || SGRPlayerVisualiserShowing();
 }
 
 void SGRPlayerHoldField(void) {

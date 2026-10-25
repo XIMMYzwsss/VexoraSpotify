@@ -223,7 +223,7 @@ static UIButton *controlButton(NSString *symbol, CGFloat size, NSString *label, 
     _artist.text = state.track.artistName;
     SGRStyleLyricsChromeButton(_play, state.isPaused ? @"play.fill" : @"pause.fill", 30, UIImageSymbolWeightBold);
     _play.accessibilityLabel = state.isPaused ? @"Play" : @"Pause";
-    _field.motionHeld = state.isPaused;
+    _field.motionHeld = !SGPlayerIsPlaying();
     // A pause brings the controls back and keeps them; playing again, from here or anywhere, starts the
     // clock. The tap on the play button cannot: the state saying so arrives a beat after it.
     if (state.isPaused) [self setControlsShown:YES];

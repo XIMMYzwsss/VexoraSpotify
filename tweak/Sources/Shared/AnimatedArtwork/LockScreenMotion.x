@@ -23,6 +23,7 @@
 #import "Shared/LockScreenLyrics/SGLyricsClip.h"
 #import "Shared/Player/NowPlayingExtras.h"
 #import "Shared/Player/PlayerState.h"
+#import "Shared/Player/SGLastTrack.h"
 
 // How far a clip's width over height may be from its key's and still be taken as it is.
 static const CGFloat kSameShape = 0.02;
@@ -79,6 +80,9 @@ static void show(NSURL *file) {
         CGFloat ratio;
         NSString *key = keyFor(poster.size, &ratio);
         if (!key) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                if (walk == sg_walk) show(file);
+            });
             SGLog(@"lock motion: the system lists no key yet (%@)", MPNowPlayingInfoCenter.supportedAnimatedArtworkKeys);
             return;
         }
@@ -111,16 +115,29 @@ static void withCover(NSString *title, void (^then)(CGImageRef cover)) {
     dispatch_async(dispatch_get_main_queue(), ^{
         NSDictionary *info = MPNowPlayingInfoCenter.defaultCenter.nowPlayingInfo;
         MPMediaItemArtwork *artwork = info[MPMediaItemPropertyArtwork];
-        UIImage *cover = SGNowPlayingTitlesMatch(info[MPMediaItemPropertyTitle], title)
-            && [artwork isKindOfClass:MPMediaItemArtwork.class]
-            ? [artwork imageWithSize:CGSizeMake(600, 600)] : nil;
-        dispatch_async(sg_queue, ^{ then(cover.CGImage); });
+        UIImage *cover = nil;
+        if ([artwork isKindOfClass:MPMediaItemArtwork.class]) {
+            NSString *infoTitle = info[MPMediaItemPropertyTitle];
+            if (!title.length || SGNowPlayingTitlesMatch(infoTitle, title)) {
+                cover = [artwork imageWithSize:CGSizeMake(600, 600)];
+            }
+        }
+        void (^hand)(UIImage *) = ^(UIImage *image) {
+            UIImage *kept = image;
+            dispatch_async(sg_queue, ^{ then(kept.CGImage); });
+        };
+        if (cover) {
+            hand(cover);
+            return;
+        }
+        SGShownTrackArtwork(SGShownTrackNow(), ^(UIImage *image) { hand(image); });
     });
 }
 
 // The picture the track names, so the songs of an album share a clip; the track itself when it names none.
 static NSString *pictureOf(SPTPlayerTrack *track, NSDictionary *metadata) {
-    for (NSString *field in @[@"image_xlarge_url", @"image_large_url", @"image_url"]) {
+    for (NSString *field in @[@"image_xlarge_url", @"image_large_url", @"image_url", @"image_small_url",
+                              @"album_cover_url", @"cover_art_url", @"cover_url"]) {
         id value = metadata[field];
         if ([value isKindOfClass:NSString.class] && [value length]) return value;
     }
@@ -130,7 +147,13 @@ static NSString *pictureOf(SPTPlayerTrack *track, NSDictionary *metadata) {
 // The cover's clip is 3:4 (SGLyricsClipSize), so it goes only where the system lists that key.
 API_AVAILABLE(ios(26.0))
 static void showCover(NSString *picture) {
-    if (![MPNowPlayingInfoCenter.supportedAnimatedArtworkKeys containsObject:MPNowPlayingInfoProperty3x4AnimatedArtwork]) return;
+    if (![MPNowPlayingInfoCenter.supportedAnimatedArtworkKeys containsObject:MPNowPlayingInfoProperty3x4AnimatedArtwork]) {
+        NSUInteger walk = sg_walk;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (walk == sg_walk && sg_choice == SGLockArtworkEverySong) showCover(picture);
+        });
+        return;
+    }
     CGFloat coverScale = SGLockScreenCoverArtworkScale();
     NSString *clipID = [NSString stringWithFormat:@"fluid\n%@\ncover %.2f", picture, coverScale];
     NSURL *file = SGMotionMadeFile(clipID);
@@ -160,7 +183,13 @@ static void showCover(NSString *picture) {
 
 API_AVAILABLE(ios(26.0))
 static void showFill(NSString *picture) {
-    if (![MPNowPlayingInfoCenter.supportedAnimatedArtworkKeys containsObject:MPNowPlayingInfoProperty3x4AnimatedArtwork]) return;
+    if (![MPNowPlayingInfoCenter.supportedAnimatedArtworkKeys containsObject:MPNowPlayingInfoProperty3x4AnimatedArtwork]) {
+        NSUInteger walk = sg_walk;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (walk == sg_walk && sg_choice == SGLockArtworkFill) showFill(picture);
+        });
+        return;
+    }
     NSString *title = sg_title;
     CGSize size = SGLyricsClipSize(SGMotionPixels());
     NSURL *file = SGMotionMadeFile([NSString stringWithFormat:@"fill\nv9\n%@\n%.0fx%.0f", picture, size.width, size.height]);

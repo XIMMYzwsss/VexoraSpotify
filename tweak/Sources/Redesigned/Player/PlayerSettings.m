@@ -154,7 +154,7 @@ static NSArray<NSString *> *backgroundNotes(void) {
     _artist.text = shown.artist ?: @"";
     _position = shown.current && state.duration > 0 ? MIN(1, MAX(0, state.position / state.duration)) : 0;
     // The clip covers the field, and the hills move over it, which then holds still, as in the player.
-    _field.motionHeld = state.isPaused || _motion != nil || _visualiser != nil;
+    _field.motionHeld = !SGPlayerIsPlaying() || _motion != nil || _visualiser != nil;
     if (shown.current && SGRNowPlayingArtwork(NULL, NULL)) {
         [self artworkChanged];
     } else if (!shown.current && shown.artworkURL) {
@@ -205,7 +205,7 @@ static NSArray<NSString *> *backgroundNotes(void) {
         self->_visualiser = effectiveKind == SGRPlayerBackgroundVisualiser && !self->_motion
             ? SGRPlayerVisualiserPreview() : nil;
         if (self->_visualiser) [self insertSubview:self->_visualiser aboveSubview:self->_field];
-        self->_field.motionHeld = SGPlayerState().isPaused || self->_motion != nil || self->_visualiser != nil;
+        self->_field.motionHeld = !SGPlayerIsPlaying() || self->_motion != nil || self->_visualiser != nil;
     };
     self.accessibilityValue = [SGRPlayerBackgroundNames()[(NSUInteger)kind] stringByAppendingString:@" background"];
     if (animated && self.window) {

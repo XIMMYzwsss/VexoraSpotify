@@ -8,7 +8,8 @@
 // The cover a track's metadata names, largest first: a local file's cover on the phone, or Spotify's picture on
 // i.scdn.co.
 static NSString *artworkIn(NSDictionary *metadata) {
-    for (NSString *field in @[@"image_xlarge_url", @"image_large_url", @"image_url"]) {
+    for (NSString *field in @[@"image_xlarge_url", @"image_large_url", @"image_url", @"image_small_url",
+                              @"album_cover_url", @"cover_art_url", @"cover_url"]) {
         id value = metadata[field];
         if (![value isKindOfClass:NSString.class] || ![value length]) continue;
         NSString *local = SGLocalFileCoverInURL(value);
@@ -119,7 +120,7 @@ void SGShownTrackArtwork(SGShownTrack *track, void (^done)(UIImage *image)) {
     }
     [[NSURLSession.sharedSession dataTaskWithURL:url completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         NSInteger status = [response isKindOfClass:NSHTTPURLResponse.class] ? ((NSHTTPURLResponse *)response).statusCode : 0;
-        decode(status == 200 ? data : nil);
+        decode(data.length && (status == 0 || status == 200 || status == 304) ? data : nil);
     }] resume];
 }
 

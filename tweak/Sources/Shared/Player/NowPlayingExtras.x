@@ -32,7 +32,18 @@ BOOL SGNowPlayingTitlesMatch(id left, id right) {
     NSString *leftTitle = left;
     NSString *rightTitle = right;
     if ([leftTitle isEqualToString:rightTitle]) return YES;
-    return [titleWithoutTrackNumber(leftTitle) isEqualToString:titleWithoutTrackNumber(rightTitle)];
+    NSString *a = titleWithoutTrackNumber(leftTitle);
+    NSString *b = titleWithoutTrackNumber(rightTitle);
+    if ([a isEqualToString:b]) return YES;
+    // Connect's now-playing title is often "Song - Artist" while the player state is just "Song".
+    if (a.length && b.length && ([a hasPrefix:b] || [b hasPrefix:a])) return YES;
+    for (NSString *sep in @[@" - ", @" – ", @" — "]) {
+        NSRange range = [a rangeOfString:sep];
+        if (range.location != NSNotFound && [[a substringToIndex:range.location] isEqualToString:b]) return YES;
+        range = [b rangeOfString:sep];
+        if (range.location != NSNotFound && [[b substringToIndex:range.location] isEqualToString:a]) return YES;
+    }
+    return NO;
 }
 
 // `stale` are an owner's old keys: the info the getter gives back can still carry them, and the hook puts

@@ -32,8 +32,7 @@ static NSHashTable<UIView *> *sg_tilts;
 static NSMapTable<UIView *, UIView *> *sg_covers;
 
 static CGFloat currentScale(void) {
-    SPTPlayerState *state = SGPlayerState();
-    if (!state.isPaused) return 1;
+    if (SGPlayerIsPlaying()) return 1;
     return SGRReduceMotion() ? 1 : kPausedScale;
 }
 
@@ -116,7 +115,7 @@ CGRect SGRPlayerArtworkAreaIn(UIView *host) {
 static __weak UIView *sg_hiddenCover, *sg_hiddenPlate;
 
 void SGRPlayerSetCoverHidden(BOOL hidden) {
-    sg_hiddenCover.alpha = SGRReduceMotion() && SGPlayerState().isPaused ? 0.75 : 1;
+    sg_hiddenCover.alpha = SGRReduceMotion() && !SGPlayerIsPlaying() ? 0.75 : 1;
     sg_hiddenPlate.alpha = 1;
     sg_hiddenCover = sg_hiddenPlate = nil;
     if (!hidden) return;
@@ -139,7 +138,7 @@ static void scaleEveryCover(BOOL animated) {
         for (UIView *tilt in tilts) {
             scaleCover(tilt, scale);
             UIView *cover = coverIn(tilt);
-            if (cover != sg_hiddenCover) cover.alpha = SGRReduceMotion() && SGPlayerState().isPaused ? 0.75 : 1;
+            if (cover != sg_hiddenCover) cover.alpha = SGRReduceMotion() && !SGPlayerIsPlaying() ? 0.75 : 1;
         }
     };
     if (animated) SGRAnimate(SGRReduceMotion() ? SGRMotionRespond : SGRMotionLayout, apply, nil);
@@ -374,7 +373,7 @@ static UIView *coverOfImage(UIView *image) {
 }
 
 - (void)playerStateDidChange:(SPTPlayerState *)state {
-    NSInteger paused = state.isPaused ? 1 : 0;
+    NSInteger paused = SGPlayerIsPlaying() ? 0 : 1;
     if (paused == _paused) return;
     _paused = paused;
     scaleEveryCover(YES);

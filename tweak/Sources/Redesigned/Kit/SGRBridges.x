@@ -1,5 +1,7 @@
+#import <MediaPlayer/MediaPlayer.h>
 #import "Core/SGCore.h"
 #import "Shared/Player/PlayerEvents.h"
+#import "Shared/Player/NowPlayingExtras.h"
 #import "SGRBridges.h"
 #import "SGRedesign.h"
 #import "SGRRestyle.h"
@@ -20,7 +22,7 @@ static NSURLSessionDataTask *sg_fetch;
 
 // Retries of a fetch that failed, and how long before each.
 static const NSTimeInterval kFetchRetry = 2;
-static const NSUInteger kFetchAttempts = 2;
+static const NSUInteger kFetchAttempts = 4;
 
 static void artworkLog(NSString *format, ...) NS_FORMAT_FUNCTION(1, 2);
 static void artworkLog(NSString *format, ...) {
@@ -42,16 +44,29 @@ static NSString *imageIDIn(id value) {
 }
 
 // The picture a track names, largest first, and where it can be fetched from.
+static NSString *keyFromImageValue(NSString *value, NSURL **url) {
+    NSString *identifier = imageIDIn(value);
+    if (!identifier) return nil;
+    if (url) *url = [value hasPrefix:@"https://"] || [value hasPrefix:@"http://"] ? [NSURL URLWithString:value]
+                                                                                 : [NSURL URLWithString:[@"https://i.scdn.co/image/" stringByAppendingString:identifier]];
+    // Every size of one picture shares its last 24 digits; the first 16 are the size.
+    return identifier.length == 40 ? [identifier substringFromIndex:16] : identifier;
+}
+
 static NSString *pictureOf(SPTPlayerTrack *track, NSURL **url) {
     NSDictionary *metadata = [track respondsToSelector:@selector(metadata)] ? track.metadata : nil;
     if (![metadata isKindOfClass:NSDictionary.class]) return nil;
-    for (NSString *field in @[@"image_xlarge_url", @"image_large_url", @"image_url", @"image_small_url"]) {
-        NSString *value = metadata[field], *identifier = imageIDIn(value);
-        if (!identifier) continue;
-        if (url) *url = [value hasPrefix:@"https://"] ? [NSURL URLWithString:value]
-                                                     : [NSURL URLWithString:[@"https://i.scdn.co/image/" stringByAppendingString:identifier]];
-        // Every size of one picture shares its last 24 digits; the first 16 are the size.
-        return identifier.length == 40 ? [identifier substringFromIndex:16] : identifier;
+    for (NSString *field in @[@"image_xlarge_url", @"image_large_url", @"image_url", @"image_small_url",
+                              @"album_cover_url", @"cover_art_url", @"cover_url", @"album_image_url"]) {
+        NSString *key = keyFromImageValue(metadata[field], url);
+        if (key) return key;
+    }
+    // Connect metadata names the cover under keys this list has not seen yet.
+    for (NSString *field in metadata) {
+        NSString *lower = field.lowercaseString;
+        if (![lower containsString:@"image"] && ![lower containsString:@"cover"]) continue;
+        NSString *key = keyFromImageValue(metadata[field], url);
+        if (key) return key;
     }
     return nil;
 }
@@ -90,7 +105,8 @@ static void fetchPicture(NSString *key, NSURL *url, NSUInteger attempt) {
     CFTimeInterval started = CACurrentMediaTime();
     sg_fetch = [artworkSession() dataTaskWithURL:url completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         NSInteger status = [response isKindOfClass:NSHTTPURLResponse.class] ? ((NSHTTPURLResponse *)response).statusCode : 0;
-        UIImage *image = data.length && status == 200 ? [UIImage imageWithData:data] : nil;
+        // A cache hit can arrive as 0 or 304 with the bytes still on the task.
+        UIImage *image = data.length && (status == 0 || status == 200 || status == 304) ? [UIImage imageWithData:data] : nil;
         // Decoded here, off the main thread, rather than on the first frame that draws it.
         image = image.imageByPreparingForDisplay ?: image;
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -117,22 +133,50 @@ static void fetchPicture(NSString *key, NSURL *url, NSUInteger attempt) {
     [sg_fetch resume];
 }
 
+static BOOL sg_takingSystem;
+
+static void takeSystemArtwork(void) {
+    if (sg_takingSystem) return;
+    NSString *uri = SGURIString(SGPlayerState().track.URI);
+    if (!uri) return;
+    NSDictionary *info = MPNowPlayingInfoCenter.defaultCenter.nowPlayingInfo;
+    MPMediaItemArtwork *artwork = info[MPMediaItemPropertyArtwork];
+    if (![artwork isKindOfClass:MPMediaItemArtwork.class]) return;
+    NSString *title = info[MPMediaItemPropertyTitle];
+    NSString *trackTitle = SGPlayerState().track.trackTitle;
+    if (title.length && trackTitle.length && !SGNowPlayingTitlesMatch(title, trackTitle)
+        && sg_artworkQuality == SGRArtworkQualityExact) return;
+    UIImage *image = [artwork imageWithSize:CGSizeMake(640, 640)];
+    if (!image) return;
+    sg_takingSystem = YES;
+    SGRSetNowPlayingArtwork(image, uri, SGRArtworkQualityHigh);
+    sg_takingSystem = NO;
+}
+
 static void followPlayer(void) {
     SPTPlayerTrack *track = SGPlayerState().track;
     NSString *uri = SGURIString(track.URI);
-    if (!uri) return;
-    // The same track is looked at again only while its metadata has named no picture yet.
-    if ([uri isEqualToString:sg_wantedURI] && ![sg_wantedKey hasPrefix:@"track:"]) return;
-    sg_wantedURI = uri;
+    if (!uri) {
+        takeSystemArtwork();
+        return;
+    }
     NSURL *url = nil;
     // A track whose metadata names no picture is its own key: only the screens can show it then.
     NSString *key = pictureOf(track, &url) ?: [@"track:" stringByAppendingString:uri];
-    if ([key isEqualToString:sg_wantedKey]) return;
-    sg_wantedKey = key;
-    [sg_fetch cancel];
-    sg_fetch = nil;
-    if ([key isEqualToString:sg_artworkKey] && sg_artworkQuality == SGRArtworkQualityExact) return;
-    if (url) fetchPicture(key, url, 0);
+    BOOL same = [uri isEqualToString:sg_wantedURI] && [key isEqualToString:sg_wantedKey];
+    sg_wantedURI = uri;
+    if (same && sg_fetch) {
+        takeSystemArtwork();
+        return;
+    }
+    if (same && [key isEqualToString:sg_artworkKey] && sg_artworkQuality == SGRArtworkQualityExact) return;
+    if (!same) {
+        sg_wantedKey = key;
+        [sg_fetch cancel];
+        sg_fetch = nil;
+    }
+    if (url && !([key isEqualToString:sg_artworkKey] && sg_artworkQuality == SGRArtworkQualityExact)) fetchPicture(key, url, 0);
+    takeSystemArtwork();
 }
 
 void SGRSetNowPlayingArtwork(UIImage *image, NSString *trackURI, SGRArtworkQuality quality) {
@@ -168,6 +212,17 @@ UIImage *SGRNowPlayingArtwork(NSString **trackURI, NSString **identity) {
 @implementation SGRArtworkFollower
 - (void)playerStateDidChange:(SPTPlayerState *)state {
     followPlayer();
+    NSString *uri = SGURIString(state.track.URI);
+    if (!uri) return;
+    static NSString *last;
+    if ([uri isEqualToString:last]) return;
+    last = [uri copy];
+    // Connect fills metadata and now-playing artwork a beat after the track URI.
+    for (NSNumber *delay in @[@0.6, @1.5, @3.5]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if ([uri isEqualToString:sg_wantedURI]) followPlayer();
+        });
+    }
 }
 @end
 

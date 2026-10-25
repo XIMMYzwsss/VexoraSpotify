@@ -14,6 +14,8 @@ static SGRGlassMode glassMode(void) {
     return SGRGlassModeBlur;
 }
 
+static UIVisualEffect *shapeEffect(SGRGlassMode mode);
+
 static UIView *newShape(SGRGlassMode mode) {
     UIView *shape;
     switch (mode) {
@@ -88,6 +90,11 @@ static UIView *glassInside(UIView *control, const void *key, CGSize size, BOOL c
     if (!CGRectEqualToRect(shape.bounds, bounds)) {
         shape.bounds = bounds;
         SGShapeGlass(shape, MIN(size.width, size.height) / 2, capsule);
+    } else if (!shape.hidden) {
+        SGShapeGlass(shape, MIN(size.width, size.height) / 2, capsule);
+    }
+    if (!shape.hidden && [shape isKindOfClass:UIVisualEffectView.class] && !((UIVisualEffectView *)shape).effect) {
+        ((UIVisualEffectView *)shape).effect = shapeEffect(mode);
     }
     keepFilm(shape, prominent, mode);
     CGPoint middle = CGPointMake(CGRectGetMidX(control.bounds), CGRectGetMidY(control.bounds));

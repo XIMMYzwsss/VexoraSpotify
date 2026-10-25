@@ -12,3 +12,6 @@ NSString *SGURIString(id uri);
 void SGAddPlayerStateObserver(id<SGPlayerStateObserver> observer);
 // The last state reported, nil before the player has reported one.
 SPTPlayerState *SGPlayerState(void);
+// Whether music is actually going, including Connect on another device. This phone can sit on isPaused
+// while the other device plays; the system now-playing rate is what tells then.
+BOOL SGPlayerIsPlaying(void);

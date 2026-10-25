@@ -1,4 +1,5 @@
 // PlayerState.h names the hooks and why they are the ones.
+#import <MediaPlayer/MediaPlayer.h>
 #import "Core/SGCore.h"
 #import "PlayerState.h"
 
@@ -22,6 +23,21 @@ void SGAddPlayerStateObserver(id<SGPlayerStateObserver> observer) {
 
 SPTPlayerState *SGPlayerState(void) {
     return sg_playerState;
+}
+
+BOOL SGPlayerIsPlaying(void) {
+    NSDictionary *info = MPNowPlayingInfoCenter.defaultCenter.nowPlayingInfo;
+    NSNumber *rate = info[MPNowPlayingInfoPropertyPlaybackRate];
+    if ([rate isKindOfClass:NSNumber.class] && rate.doubleValue > 0.01) return YES;
+    if (@available(iOS 13.0, *)) {
+        if (MPNowPlayingInfoCenter.defaultCenter.playbackState == MPNowPlayingPlaybackStatePlaying) return YES;
+    }
+    SPTPlayerState *state = sg_playerState;
+    if (!state) return NO;
+    if ([state respondsToSelector:@selector(isPlaying)] && [state respondsToSelector:@selector(isPaused)]
+        && state.isPlaying && !state.isPaused) return YES;
+    if ([state respondsToSelector:@selector(isPaused)] && !state.isPaused && state.track) return YES;
+    return NO;
 }
 
 // What an observer is told about; the state object itself is new with every position report.
@@ -85,6 +101,28 @@ static SGPlayerObserver *sg_ownObserver;
             id state = [player respondsToSelector:@selector(state)] ? [(id<SPTPlayer>)player state] : nil;
             if (state) report(state, NO);
         });
+    });
+}
+%end
+
+// Connect often leaves SPTPlayerState.isPaused set on this phone while the other device plays. The
+// now-playing rate is what moves, so observers get a chance to run the field and the clip then.
+%hook MPNowPlayingInfoCenter
+- (void)setNowPlayingInfo:(NSDictionary *)info {
+    %orig;
+    static NSString *lastTitle;
+    static double lastRate = NAN;
+    NSString *title = [info[MPMediaItemPropertyTitle] isKindOfClass:NSString.class] ? info[MPMediaItemPropertyTitle] : @"";
+    NSNumber *rate = info[MPNowPlayingInfoPropertyPlaybackRate];
+    double r = [rate isKindOfClass:NSNumber.class] ? rate.doubleValue : 0;
+    BOOL changed = !lastTitle || ![title isEqualToString:lastTitle] || !(fabs(r - lastRate) < 0.01);
+    lastTitle = title;
+    lastRate = r;
+    if (!changed) return;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (!sg_playerState) return;
+        sg_stateKey = nil;
+        publish(sg_playerState);
     });
 }
 %end

@@ -55,7 +55,7 @@ static const CGFloat kCanvasAspect = 1.5;
 // controls whatever the clip's shape; it is whole kBlurRamp points below its start.
 static const CGFloat kBlurByControls = 0.6, kBlurRamp = 96;
 // Seconds a clip may be on screen in front without drawing a frame before it is given up.
-static const NSTimeInterval kGiveUp = 5;
+static const NSTimeInterval kGiveUp = 12;
 // Seconds the last track's clip stays on a skip for the next one's to come in over it.
 static const NSTimeInterval kHandOver = 0.4;
 // The dim's floor and ceiling, and what the lyrics add to it.
@@ -385,20 +385,22 @@ static UIViewPropertyAnimator *setBlurIntensity(UIVisualEffectView *view, UIView
 - (void)updateMotion {
     BOOL front = UIApplication.sharedApplication.applicationState == UIApplicationStateActive;
     BOOL may = self.window && front && !SGRPlayerIsTransitioning() && !SGRReduceMotion() && !NSProcessInfo.processInfo.lowPowerModeEnabled
-        && !SGPlayerState().isPaused;
+        && SGPlayerIsPlaying();
     if (may) [_player play];
     else [_player pause];
-    // A paused player still draws the clip's first frame, so the count runs whenever it is on screen in front.
-    if (_player && self.window && front && !_timing && !_clip.readyForDisplay) {
+    // Only count while the clip is actually allowed to play: paused, Connect-as-paused, or out of a
+    // window used to burn the 5 s and throw the clip away before a frame could land.
+    if (may && _player && !_timing && !_clip.readyForDisplay) {
         _timing = YES;
         __weak SGRPlayerMotionView *weakSelf = self;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kGiveUp * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             SGRPlayerMotionView *view = weakSelf;
             if (!view) return;
             view->_timing = NO;
-            // Taken off screen meanwhile, the count starts again when it is back.
-            BOOL shown = view.window && UIApplication.sharedApplication.applicationState == UIApplicationStateActive;
-            if (shown && !view->_clip.readyForDisplay && view.gaveUp) view.gaveUp();
+            BOOL still = view.window && UIApplication.sharedApplication.applicationState == UIApplicationStateActive
+                && SGPlayerIsPlaying() && !SGRPlayerIsTransitioning();
+            if (still && !view->_clip.readyForDisplay && view.gaveUp) view.gaveUp();
+            else [view updateMotion];
         });
     }
 }

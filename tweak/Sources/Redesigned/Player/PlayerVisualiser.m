@@ -297,7 +297,7 @@ static CAGradientLayer *fill(CAShapeLayer *shape) {
         // Without an expected end, the transition's ended notification brings it back.
         if (wait > 0) [self performSelector:@selector(updateMotion) withObject:nil afterDelay:wait + kTransitionSlack inModes:@[NSRunLoopCommonModes]];
     }
-    BOOL playing = !SGPlayerState().isPaused;
+    BOOL playing = SGPlayerIsPlaying();
     [self setMoving:may && (playing || !self.settled)];
     [self setReading:may && playing];
 }
