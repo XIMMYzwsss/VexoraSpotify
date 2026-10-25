@@ -20,6 +20,7 @@
 #import "Shared/Haptics/Haptics.h"
 #import "Redesigned/Kit/SGRTokens.h"
 #import "Redesigned/Kit/SGRBridges.h"
+#import "Redesigned/Kit/SGRPalette.h"
 #import <NaturalLanguage/NaturalLanguage.h>
 
 static const CGFloat kMargin = 24, kRowTighten = 2;
@@ -1580,9 +1581,12 @@ void SGRLyricsFillScreen(UIView *host, UIView *behind) {
 
 void SGRLyricsPaintBackdrop(UIView *plate) {
     if (!plate) return;
-    static const NSInteger kOriginalCoverTag = 88007;
+    static const NSInteger kOriginalCoverTag = 88007, kOriginalBlurTag = 88008, kOriginalDimTag = 88009;
+    static NSUInteger sg_originalPaint;
     SGRLyricsFullscreenBackground mode = SGRLyricsFullscreenBackgroundNow();
     UIImageView *original = [plate viewWithTag:kOriginalCoverTag];
+    UIVisualEffectView *frost = [plate viewWithTag:kOriginalBlurTag];
+    UIView *dim = [plate viewWithTag:kOriginalDimTag];
     if (mode == SGRLyricsFullscreenBackgroundOriginal) {
         plate.hidden = NO;
         plate.backgroundColor = UIColor.blackColor;
@@ -1597,14 +1601,42 @@ void SGRLyricsPaintBackdrop(UIView *plate) {
             original.clipsToBounds = YES;
             original.userInteractionEnabled = NO;
             original.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-            [plate addSubview:original];
+            [plate insertSubview:original atIndex:0];
         }
-        original.hidden = NO;
-        original.frame = plate.bounds;
-        original.image = SGRNowPlayingArtwork(NULL, NULL);
+        if (!frost) {
+            frost = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleRegular]];
+            frost.tag = kOriginalBlurTag;
+            frost.userInteractionEnabled = NO;
+            frost.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+            [plate addSubview:frost];
+        }
+        if (!dim) {
+            dim = [UIView new];
+            dim.tag = kOriginalDimTag;
+            dim.backgroundColor = [UIColor colorWithWhite:0 alpha:0.32];
+            dim.userInteractionEnabled = NO;
+            dim.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+            [plate addSubview:dim];
+        }
+        original.hidden = frost.hidden = dim.hidden = NO;
+        original.frame = frost.frame = dim.frame = plate.bounds;
+        UIImage *art = SGRNowPlayingArtwork(NULL, NULL);
+        if (art && original.image != art) original.image = art;
+        NSUInteger paint = ++sg_originalPaint;
+        if (art) {
+            SGRPaletteRequest request = {.backdropSize = plate.bounds.size.width > 0 ? plate.bounds.size : CGSizeMake(402, 874),
+                                         .amoled = YES};
+            [SGRPalette paletteForImage:art request:request completion:^(SGRPalette *palette) {
+                if (paint != sg_originalPaint) return;
+                if (SGRLyricsFullscreenBackgroundNow() != SGRLyricsFullscreenBackgroundOriginal) return;
+                if (palette.backdrop) original.image = palette.backdrop;
+            }];
+        }
         return;
     }
     original.hidden = YES;
+    frost.hidden = YES;
+    dim.hidden = YES;
     plate.hidden = NO;
     for (CALayer *sub in [plate.layer.sublayers copy]) if ([sub isKindOfClass:CAGradientLayer.class]) [sub removeFromSuperlayer];
     if (mode == SGRLyricsFullscreenBackgroundSolid) {
