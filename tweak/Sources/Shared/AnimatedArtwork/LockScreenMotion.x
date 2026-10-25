@@ -10,7 +10,8 @@
 // the track names, so an album's songs share one.
 //
 // The choice is read on every track, and a change applies at once: Off takes the clip away, Moving artwork
-// and Every song look the playing track up, and Fill makes a generated sharp-to-blurred cover clip.
+// and Every song look the playing track up, Fill makes a generated sharp-to-blurred cover clip, and Moving
+// or Fill puts Fill on at once so the lock screen is never empty, then the moving clip if one is found.
 // Lyrics is LyricsArtwork.x's, which reads it only at launch, so a launch with Lyrics leaves this off until
 // the next one.
 #import <MediaPlayer/MediaPlayer.h>
@@ -36,6 +37,9 @@ static dispatch_queue_t sg_queue;   // cuts clips and makes the cover's, one at 
 static SGMotionFollower *sg_follower;
 static NSURL *sg_lyricsFile;
 static BOOL sg_plain, sg_plainShown;
+// Moving or Fill puts Fill on while the clip is looked up; its video is not encoded until the walk
+// says there is none, so a song that has a clip is not held behind a Fill write.
+static BOOL sg_fillStandIn;
 
 static BOOL motionOn(SGLockArtwork choice) {
     return SGLockArtworkHasMotion(choice);
@@ -191,6 +195,7 @@ static void showFill(NSString *picture) {
         return;
     }
     NSString *title = sg_title;
+    BOOL standIn = sg_fillStandIn;
     CGSize size = SGLyricsClipSize(SGMotionPixels());
     NSURL *file = SGMotionMadeFile([NSString stringWithFormat:@"fill\nv9\n%@\n%.0fx%.0f", picture, size.width, size.height]);
     __block UIImage *renderedFrame;
@@ -202,10 +207,14 @@ static void showFill(NSString *picture) {
                     if (frame) renderedFrame = [UIImage imageWithCGImage:frame];
                     if (frame) CGImageRelease(frame);
                 }
-                completion(renderedFrame ? filled(renderedFrame, wanted) : nil);
+                completion(renderedFrame ? filled(renderedFrame, wanted) : (cover ? filled([UIImage imageWithCGImage:cover], wanted) : nil));
             });
         }
         videoAssetFileURLRequestHandler:^(CGSize wanted, void (^completion)(NSURL *)) {
+            if (standIn) {
+                completion(nil);
+                return;
+            }
             withCover(title, ^(CGImageRef cover) {
                 if (!renderedFrame) {
                     CGImageRef frame = SGFillClipFrame(cover, size);
@@ -245,7 +254,6 @@ void SGLockMotionShowPlain(BOOL plain) {
         // Each walk takes the last one's clip off first, so the lock screen falls back to the still cover.
         sg_follower = [[SGMotionFollower alloc] initWithBegin:^BOOL(NSString *uri, SPTPlayerState *state) {
             sg_walk++;
-            SGNowPlayingSetExtras(@"motion", nil, nil);
             sg_lyricsFile = nil;
             sg_plainShown = NO;
             NSDictionary *metadata = [state.track.metadata isKindOfClass:NSDictionary.class] ? state.track.metadata : nil;
@@ -253,21 +261,37 @@ void SGLockMotionShowPlain(BOOL plain) {
             sg_picture = pictureOf(state.track, metadata);
             sg_choice = SGLockScreenArtwork();
             if (sg_choice == SGLockArtworkFill) {
+                sg_fillStandIn = NO;
                 showFill(sg_picture);
                 return NO;
             }
+            // Fill is on from the first frame; the walk replaces it if a clip lands.
+            if (sg_choice == SGLockArtworkMotionFill) {
+                sg_fillStandIn = YES;
+                showFill(sg_picture);
+                return YES;
+            }
+            sg_fillStandIn = NO;
+            SGNowPlayingSetExtras(@"motion", nil, nil);
             return motionOn(sg_choice);
         } found:^(NSString *uri, NSURL *file) {
+            if (file) sg_fillStandIn = NO;
             if (SGLockScreenCanvasLyricsEnabled() && motionOn(sg_choice)) {
                 sg_lyricsFile = file;
                 SGLyricsArtworkSetMotion(uri, file);
                 SGLockMotionShowPlain(sg_plain);
                 if (file) return;
                 if (sg_choice == SGLockArtworkEverySong) showCover(sg_picture);
-                else if (sg_choice == SGLockArtworkMotionFill) showFill(sg_picture);
+                else if (sg_choice == SGLockArtworkMotionFill) {
+                    sg_fillStandIn = NO;
+                    showFill(sg_picture);
+                }
             } else if (file) show(file);
             else if (sg_choice == SGLockArtworkEverySong) showCover(sg_picture);
-            else if (sg_choice == SGLockArtworkMotionFill) showFill(sg_picture);
+            else if (sg_choice == SGLockArtworkMotionFill) {
+                sg_fillStandIn = NO;
+                showFill(sg_picture);
+            }
         }];
         // Heard on the writing thread and handed to main without waiting: a main-queue observer makes every
         // background defaults write wait for main, which deadlocks launch while main waits on Spotify's CoreThread.
