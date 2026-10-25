@@ -1362,22 +1362,23 @@ typedef struct {
         [self insertSubview:_creditOuter belowSubview:_credit];
         [self insertSubview:_creditEdge aboveSubview:_creditOuter];
     }
-    UIColor *outline = SGRLyricsOutlineColor();
+    UIFont *font = _credit.font ?: [UIFont systemFontOfSize:12];
+    UIColor *outline = SGRLyricsOutlineColor() ?: UIColor.whiteColor;
     CGFloat r = 0, g = 0, b = 0, a = 0;
-    [outline getRed:&r green:&g blue:&b alpha:&a];
+    if (![outline getRed:&r green:&g blue:&b alpha:&a]) r = g = b = 1;
     BOOL separate = 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.62;
     NSAttributedString *(^stroke)(UIColor *, CGFloat) = ^NSAttributedString *(UIColor *color, CGFloat width) {
         return [[NSAttributedString alloc] initWithString:text attributes:@{
-            NSFontAttributeName: _credit.font, NSForegroundColorAttributeName: UIColor.clearColor,
-            NSStrokeColorAttributeName: color, NSStrokeWidthAttributeName: @(width),
+            NSFontAttributeName: font, NSForegroundColorAttributeName: UIColor.clearColor,
+            NSStrokeColorAttributeName: color ?: UIColor.whiteColor, NSStrokeWidthAttributeName: @(width),
         }];
     };
     _creditOuter.hidden = NO;
-    _creditOuter.font = _credit.font;
+    _creditOuter.font = font;
     _creditOuter.attributedText = stroke(outline, separate ? 5 : 3);
     _creditEdge.hidden = !separate;
     if (separate) {
-        _creditEdge.font = _credit.font;
+        _creditEdge.font = font;
         _creditEdge.attributedText = stroke(UIColor.blackColor, 2.6);
     }
 }
@@ -1609,9 +1610,12 @@ void SGRLyricsPaintBackdrop(UIView *plate) {
             b = MIN(1, MAX(0.64, b));
             tint = [UIColor colorWithHue:h saturation:s brightness:b alpha:1];
         }
+        CGColorRef inner = [tint colorWithAlphaComponent:alphas[i]].CGColor;
+        CGColorRef outer = [tint colorWithAlphaComponent:0].CGColor;
+        if (!inner || !outer) continue;
         CAGradientLayer *rad = [CAGradientLayer layer];
         rad.type = kCAGradientLayerRadial;
-        rad.colors = @[(id)[tint colorWithAlphaComponent:alphas[i]].CGColor, (id)[tint colorWithAlphaComponent:0].CGColor];
+        rad.colors = @[(__bridge id)inner, (__bridge id)outer];
         rad.locations = @[@0, @1];
         rad.startPoint = starts[i];
         rad.endPoint = ends[i];

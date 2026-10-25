@@ -177,7 +177,7 @@ static UIButton *controlButton(NSString *symbol, CGFloat size, NSString *label, 
 }
 
 - (void)applyChrome {
-    UIColor *outline = SGRLyricsOutlineColor();
+    UIColor *outline = SGRLyricsOutlineColor() ?: UIColor.whiteColor;
     _title.outlineColor = outline;
     _artist.outlineColor = outline;
     SGRRefreshLyricsChromeButton(_close);
@@ -318,7 +318,7 @@ static UIInterfaceOrientationMask orientationsFor(id self, SEL _cmd, UIApplicati
 }
 
 // The delegate's answer replaces the portrait-only Info.plist. The sideways lyrics window stays landscape;
-// every other window can turn with the phone.
+// every other window stays portrait.
 static void answerForOrientations(void) {
     static BOOL done;
     id delegate = UIApplication.sharedApplication.delegate;
@@ -401,7 +401,7 @@ void SGRPlayerLyricsOrientationChanged(void) {
 }
 
 void SGRPlayerForceLandscapeLyrics(void) {
-    if (SGRPlayerLyricsOpen()) SGRPlayerShowLandscape(YES);
+    if (SGEnabled(SGRKeyLandscapeLyrics) && SGRPlayerLyricsOpen()) SGRPlayerShowLandscape(YES);
 }
 
 %ctor {

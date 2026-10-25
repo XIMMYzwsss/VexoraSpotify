@@ -869,7 +869,7 @@ static SGRPortraitLyricsController *sg_page;
 }
 
 - (void)applyChrome {
-    UIColor *outline = SGRLyricsOutlineColor();
+    UIColor *outline = SGRLyricsOutlineColor() ?: UIColor.whiteColor;
     _title.outlineColor = outline;
     _artist.outlineColor = outline;
     SGRRefreshLyricsChromeButton(_close);
