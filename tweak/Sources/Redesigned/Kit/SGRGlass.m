@@ -69,11 +69,6 @@ static void keepFilm(UIView *shape, BOOL prominent, SGRGlassMode mode) {
 
 static UIView *glassInside(UIView *control, const void *key, CGSize size, BOOL capsule, BOOL prominent) {
     if (!control || !key) return nil;
-    if (!SGPlayerScreenGlassEnabled() && SGViewIsOnPlayerScreen(control)) {
-        UIView *shape = objc_getAssociatedObject(control, key);
-        if (shape) shape.hidden = YES;
-        return nil;
-    }
     SGRGlassMode mode = glassMode();
     UIView *shape = objc_getAssociatedObject(control, key);
     if (shape && [objc_getAssociatedObject(shape, &kInsideModeKey) integerValue] != mode) {
