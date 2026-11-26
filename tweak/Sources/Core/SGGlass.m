@@ -1,5 +1,12 @@
 #import "SGGlass.h"
+#import "SGGlassPolicy.h"
 #import "SGRuntime.h"
+
+static void sg_hide_player_glass(UIView *host, UIVisualEffectView *glass) {
+    if (!glass || SGPlayerScreenGlassEnabled() || !SGViewIsOnPlayerScreen(host)) return;
+    glass.hidden = YES;
+    glass.effect = nil;
+}
 
 UIVisualEffect *SGGlassEffect(void) {
     Class glass = NSClassFromString(@"UIGlassEffect");
@@ -21,6 +28,7 @@ UIVisualEffectView *SGGlassFor(UIView *host, const void *key) {
         objc_setAssociatedObject(host, key, glass, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     if (glass.superview != host) [host insertSubview:glass atIndex:0];
+    sg_hide_player_glass(host, glass);
     return glass;
 }
 
@@ -36,6 +44,7 @@ UIVisualEffectView *SGGlassAt(UIView *host, NSUInteger index) {
     UIVisualEffectView *glass = panes[index];
     glass.hidden = NO;
     if (glass.superview != host) [host insertSubview:glass atIndex:0];
+    sg_hide_player_glass(host, glass);
     return glass;
 }
 
