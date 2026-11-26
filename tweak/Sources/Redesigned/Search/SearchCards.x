@@ -121,11 +121,15 @@ static void paint(SGRSearchCardParts *parts, UIColor *color) {
     if (parts.color && CGColorEqualToColor(parts.color.CGColor, color.CGColor)) return;
     parts.color = color;
     ((CAGradientLayer *)parts.plate.layer).colors = @[(id)color.CGColor, (id)darker(color).CGColor];
-    if (@available(iOS 26.0, *)) {
-        if (parts.glass) {
-            UIGlassEffect *effect = [UIGlassEffect effectWithStyle:UIGlassEffectStyleClear];
-            effect.tintColor = [color colorWithAlphaComponent:kTintAlpha];
-            parts.glass.effect = effect;
+    if (parts.glass) {
+        if (SGGlassTintsFromContentEnabled()) {
+            if (@available(iOS 26.0, *)) {
+                UIGlassEffect *effect = [UIGlassEffect effectWithStyle:UIGlassEffectStyleClear];
+                effect.tintColor = [color colorWithAlphaComponent:kTintAlpha];
+                parts.glass.effect = effect;
+            }
+        } else {
+            parts.glass.effect = SGGlassEffect();
         }
     }
 }
