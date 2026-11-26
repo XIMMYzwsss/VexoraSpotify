@@ -315,10 +315,18 @@ static void placeGlyph(UIImageView *glyph, CGRect box) {
     _plan = [NSMutableArray array];
     _expanded = [NSMutableSet set];
 
-    _backdrop = [UIView new];
-    _backdrop.backgroundColor = [UIColor colorWithWhite:0.13 alpha:0.94];
-    _backdrop.layer.cornerRadius = kCorner;
-    _backdrop.layer.cornerCurve = kCACornerCurveContinuous;
+    if (SGRReduceTransparency()) {
+        _backdrop = [UIView new];
+        _backdrop.backgroundColor = [UIColor colorWithWhite:0.13 alpha:1];
+        _backdrop.layer.cornerRadius = kCorner;
+        _backdrop.layer.cornerCurve = kCACornerCurveContinuous;
+    } else {
+        UIVisualEffect *effect = SGGlassEffect();
+        // A dark film in the glass, so white words read over the brightest cover behind it.
+        if ([effect respondsToSelector:@selector(setTintColor:)]) [(id)effect setTintColor:[UIColor colorWithWhite:0 alpha:0.28]];
+        UIVisualEffectView *glass = [[UIVisualEffectView alloc] initWithEffect:effect];
+        _backdrop = glass;
+    }
     _backdrop.userInteractionEnabled = NO;
     [self addSubview:_backdrop];
 
