@@ -3,7 +3,6 @@
 #import "SGPrefs.h"
 #import "SGViewTree.h"
 #import "SGGlass.h"
-#import "SGGlassPolicy.h"
 #import "SGBackdrop.h"
 #import "SGUIMode.h"
 #import "SGFlagForce.h"
