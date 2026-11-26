@@ -140,7 +140,7 @@ static UIVisualEffectView *glassView(UIColor *tint) {
     _capsule = glassView(nil);
     [self addSubview:_capsule];
 
-    _lens = glassView(SGGlassTintsFromContentEnabled() ? [SGAlphaIndexColor() colorWithAlphaComponent:0.78] : nil);
+    _lens = glassView([SGAlphaIndexColor() colorWithAlphaComponent:0.78]);
     _lens.alpha = 0;
     [self addSubview:_lens];
 
