@@ -13,7 +13,6 @@ static BOOL backdropOn(void) {
 #pragma mark - glass behind the header buttons
 
 static void glassBehindRoundButtons(UIViewController *unit) {
-    if (!SGPlayerScreenGlassEnabled()) return;
     if (!SGFlag(SGKeyPlayer, NO)) return;
     UIView *host = unit.viewIfLoaded;
     UIStackView *row = SGRowIn(host);
