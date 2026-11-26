@@ -19,7 +19,7 @@ static UIView *cellAround(UIView *view) {
 %hook _TtC22Lyrics_CardElementImpl8CardView
 - (void)layoutSubviews {
     %orig;
-    if (!SGPlayerScreenGlassEnabled() || !SGFlag(SGKeyLyricsCard, NO)) return;
+    if (!SGFlag(SGKeyLyricsCard, NO)) return;
     UIView *cell = cellAround((UIView *)self);
     // A card PlayerDeclutter.x collapsed reports no height; leave it alone.
     if (!cell || cell.bounds.size.height < 40) return;
