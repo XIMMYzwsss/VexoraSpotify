@@ -131,28 +131,9 @@ static void refresh(UIView *tile) {
     inset(square);
 
     UIImage *image = cover.image;
-    if (!image) {
-        objc_setAssociatedObject(tile, &kShownKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        tint(tile, surface, nil, NO);
-        return;
-    }
-    UIColor *known = [tints() objectForKey:image];
-    if (known) {
-        objc_setAssociatedObject(tile, &kShownKey, image, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        tint(tile, surface, known, YES);
-        return;
-    }
-    if (objc_getAssociatedObject(tile, &kShownKey) == image) return;
     objc_setAssociatedObject(tile, &kShownKey, image, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-
-    __weak UIView *weakTile = tile;
-    [SGRPalette tintForImage:image surface:untinted() completion:^(UIColor *color) {
-        UIView *strongTile = weakTile;
-        if (color) [tints() setObject:color forKey:image];
-        // A tile reused for another cover in the meantime has asked for that one.
-        if (!strongTile || objc_getAssociatedObject(strongTile, &kShownKey) != image) return;
-        tint(strongTile, surfaceIn(strongTile, partsOf(strongTile).fill), color, YES);
-    }];
+    // Default glass pill on Home shortcuts — not matched to each playlist cover.
+    tint(tile, surface, nil, image != nil);
 }
 
 void SGRHomeStyleTile(UIView *tile) {
