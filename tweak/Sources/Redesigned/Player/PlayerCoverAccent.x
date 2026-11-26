@@ -17,7 +17,6 @@ static __weak UIView *sg_stack;   // the bottom stack last painted
 static char kOriginalKey, kTintedKey, kAccentImageKey, kOriginalFillKey, kOriginalStrokeKey;
 
 BOOL SGRPlayerFollowsCover(void) {
-    if (!SGGlassTintsFromContentEnabled()) return NO;
     static BOOL on;
     static dispatch_once_t once;
     dispatch_once(&once, ^{ on = SGHidden(SGRKeyPlayerFollowsCover); });
