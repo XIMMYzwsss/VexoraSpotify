@@ -125,7 +125,7 @@ static void refresh(UIView *tile) {
 
     UIImage *image = cover.image;
     objc_setAssociatedObject(tile, &kShownKey, image, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    // Default glass pill on Home shortcuts — not matched to each playlist cover.
+  // Default glass pill on Home shortcuts — not tinted from each playlist cover.
     tint(tile, surface, nil, image != nil);
 }
 
