@@ -9,13 +9,6 @@ static const CGFloat kPlainInset = 5, kPlainCoverRadius = 4;
 
 static char kSurfaceKey, kImageKey, kShownKey;
 
-// Tints already worked out, by the image object while it lives (main thread only).
-static NSMapTable<UIImage *, UIColor *> *tints(void) {
-    static NSMapTable *table;
-    if (!table) table = [NSMapTable weakToStrongObjectsMapTable];
-    return table;
-}
-
 static UIColor *untinted(void) {
     static UIColor *color;
     if (!color) color = SGRElevated(UIColor.blackColor);
